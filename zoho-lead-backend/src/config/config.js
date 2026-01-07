@@ -20,6 +20,40 @@ const config = {
         scope: process.env.ZOHO_CRM_SCOPE || 'ZohoCRM.modules.ALL'
     },
 
+    // Twilio Configuration
+    twilio: {
+        enabled: process.env.TWILIO_ENABLED === 'true',
+        accountSid: process.env.TWILIO_ACCOUNT_SID,
+        authToken: process.env.TWILIO_AUTH_TOKEN,
+        phoneNumber: process.env.TWILIO_PHONE_NUMBER,
+        callDelayMs: parseInt(process.env.TWILIO_CALL_DELAY_MS, 10) || 60000,
+        maxRetries: parseInt(process.env.TWILIO_MAX_RETRIES, 10) || 3
+    },
+
+    // Exotel Configuration
+    exotel: {
+        enabled: process.env.EXOTEL_ENABLED === 'true',
+        accountSid: process.env.EXOTEL_ACCOUNT_SID,
+        apiKey: process.env.EXOTEL_API_KEY,
+        apiToken: process.env.EXOTEL_API_TOKEN,
+        subdomain: process.env.EXOTEL_SUBDOMAIN || 'api.exotel.com',
+        exophone: process.env.EXOTEL_EXOPHONE,
+        appId: process.env.EXOTEL_APP_ID || null,
+        callDelayMs: parseInt(process.env.EXOTEL_CALL_DELAY_MS, 10) || 60000,
+        callType: process.env.EXOTEL_CALL_TYPE || 'trans',
+        maxRetries: parseInt(process.env.EXOTEL_MAX_RETRIES, 10) || 3
+    },
+
+    // ElevenLabs AI Voice Configuration
+    elevenlabs: {
+        enabled: process.env.ELEVENLABS_ENABLED === 'true',
+        apiKey: process.env.ELEVENLABS_API_KEY,
+        agentId: process.env.ELEVENLABS_AGENT_ID,
+        voiceId: process.env.ELEVENLABS_VOICE_ID,
+        language: process.env.ELEVENLABS_LANGUAGE || 'ta-IN', // Tamil by default
+        webhookUrl: process.env.BASE_URL ? `${process.env.BASE_URL}/ai-call-webhook` : null
+    },
+
     // Logging
     logLevel: process.env.LOG_LEVEL || 'info'
 };
