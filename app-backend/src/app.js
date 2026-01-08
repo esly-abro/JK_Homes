@@ -11,9 +11,11 @@ const config = require('./config/env');
 const authController = require('./auth/auth.controller');
 const leadsController = require('./leads/leads.controller');
 const metricsController = require('./metrics/metrics.controller');
+const syncController = require('./sync/sync.controller');
 
 // Middleware
 const requireAuth = require('./middleware/requireAuth');
+const { requireRole } = require('./middleware/roles');
 
 // Errors
 const { AppError } = require('./utils/errors');
@@ -96,9 +98,42 @@ async function buildApp() {
     });
 
     // Auth routes (no auth required)
+    app.post('/auth/register', authController.register); // NEW: User registration
     app.post('/auth/login', authController.login);
     app.post('/auth/refresh', authController.refresh);
     app.post('/auth/logout', authController.logout);
+
+    // Twilio webhooks (public - no auth required)
+    app.post('/api/twilio/voice', async (request, reply) => {
+        const twilioService = require('./twilio/twilio.service');
+        const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="alice">Connecting your call. Please hold.</Say>
+  <Dial callerId="${twilioService.TWILIO_PHONE_NUMBER}">
+    <Number>${request.body.To || request.body.to}</Number>
+  </Dial>
+</Response>`;
+        
+        reply.header('Content-Type', 'text/xml');
+        return reply.send(twiml);
+    });
+
+    app.post('/api/twilio/status', async (request, reply) => {
+        const twilioService = require('./twilio/twilio.service');
+        const { CallSid, CallStatus, CallDuration, EndTime } = request.body;
+        
+        console.log(`Call status update: ${CallSid} -> ${CallStatus}`);
+        
+        // Update call log in MongoDB
+        await twilioService.updateCallStatus(
+            CallSid,
+            CallStatus,
+            CallDuration,
+            EndTime
+        );
+        
+        return reply.send({ success: true });
+    });
 
     // Protected API routes
     app.register(async function (protectedApp) {
@@ -112,20 +147,34 @@ async function buildApp() {
         protectedApp.get('/api/leads', leadsController.getLeads);
         protectedApp.get('/api/leads/:id', leadsController.getLead);
         protectedApp.post('/api/leads', leadsController.createLead);
+        protectedApp.put('/api/leads/:id', leadsController.updateLead);
+        protectedApp.patch('/api/leads/:id/status', leadsController.updateLeadStatus);
 
-        // Metrics routes
-        protectedApp.get('/api/metrics/overview', metricsController.getOverview);
+        // Metrics routes (manager and above only)
+        protectedApp.get('/api/metrics/overview', {
+            preHandler: requireRole(['owner', 'admin', 'manager'])
+        }, metricsController.getOverview);
         
         // Twilio routes (protected)
         protectedApp.post('/api/twilio/call', async (request, reply) => {
           const twilioService = require('./twilio/twilio.service');
           const { phoneNumber, leadId, leadName } = request.body;
+          const userId = request.user._id;
+          
           if (!phoneNumber) {
             return reply.status(400).send({ error: 'Phone number is required' });
           }
-          const result = await twilioService.makeCall(phoneNumber);
+          
+          const result = await twilioService.makeCall(
+            phoneNumber,
+            twilioService.TWILIO_PHONE_NUMBER,
+            userId,
+            leadId,
+            leadName
+          );
+          
           if (result.success) {
-            console.log(`Call initiated to ${phoneNumber} for lead ${leadName || leadId}`);
+            console.log(`Call initiated by user ${userId} to ${phoneNumber} for lead ${leadName || leadId}`);
           }
           return reply.send(result);
         });
@@ -151,6 +200,99 @@ async function buildApp() {
           const token = twilioService.generateAccessToken(identity);
           return reply.send({ token, identity });
         });
+        
+        // Site Visit routes
+        protectedApp.post('/api/leads/:id/site-visit', leadsController.postSiteVisit);
+        protectedApp.get('/api/site-visits/today', leadsController.getTodaySiteVisits);
+        protectedApp.get('/api/site-visits/me', leadsController.getMySiteVisits);
+        protectedApp.get('/api/site-visits/all', {
+            preHandler: requireRole(['owner', 'admin', 'manager'])
+        }, leadsController.getAllSiteVisitsHandler);
+
+        // Activity routes
+        protectedApp.post('/api/activities', leadsController.postActivity);
+        protectedApp.get('/api/activities/recent', leadsController.getRecentActivitiesHandler);
+        protectedApp.get('/api/activities/me', leadsController.getMyActivities);
+        protectedApp.get('/api/activities/all', {
+            preHandler: requireRole(['owner', 'admin', 'manager'])
+        }, leadsController.getAllActivitiesHandler);
+
+        // Call Log routes
+        protectedApp.get('/api/call-logs/me', leadsController.getMyCallLogs);
+        protectedApp.get('/api/call-logs/all', {
+            preHandler: requireRole(['owner', 'admin', 'manager'])
+        }, leadsController.getAllCallLogsHandler);
+        
+        // Task routes
+        protectedApp.get('/api/tasks', leadsController.getTasks);
+        protectedApp.post('/api/tasks', leadsController.createTask);
+        protectedApp.patch('/api/tasks/:id', leadsController.updateTask);
+        protectedApp.delete('/api/tasks/:id', leadsController.deleteTask);
+        
+        // User routes
+        protectedApp.get('/api/users', leadsController.getUsers);
+        
+        // User Management routes (owner/admin only)
+        const usersController = require('./users/users.controller');
+        protectedApp.get('/api/users/pending', {
+            preHandler: requireRole(['owner', 'admin'])
+        }, usersController.getPendingUsers);
+        protectedApp.get('/api/users/:id', usersController.getUserById);
+        protectedApp.patch('/api/users/:id/approve', {
+            preHandler: requireRole(['owner', 'admin'])
+        }, usersController.approveUser);
+        protectedApp.patch('/api/users/:id/reject', {
+            preHandler: requireRole(['owner', 'admin'])
+        }, usersController.rejectUser);
+        protectedApp.patch('/api/users/:id/role', {
+            preHandler: requireRole(['owner', 'admin'])
+        }, usersController.updateUserRole);
+        protectedApp.delete('/api/users/:id', {
+            preHandler: requireRole(['owner', 'admin'])
+        }, usersController.deleteUser);
+        
+        // Properties routes
+        const propertiesController = require('./properties/properties.controller');
+        protectedApp.get('/api/properties', propertiesController.getProperties);
+        protectedApp.get('/api/properties/:id', propertiesController.getPropertyById);
+        protectedApp.post('/api/properties', {
+            preHandler: requireRole(['owner', 'admin', 'manager'])
+        }, propertiesController.createProperty);
+        protectedApp.patch('/api/properties/:id', {
+            preHandler: requireRole(['owner', 'admin', 'manager'])
+        }, propertiesController.updateProperty);
+        protectedApp.delete('/api/properties/:id', {
+            preHandler: requireRole(['owner', 'admin'])
+        }, propertiesController.deleteProperty);
+        
+        // Lead Assignment routes
+        const assignmentController = require('./assignments/assignment.controller');
+        protectedApp.post('/api/assignments/assign', {
+            preHandler: requireRole(['owner', 'admin', 'manager'])
+        }, assignmentController.assignLeads);
+        protectedApp.post('/api/assignments/reassign', {
+            preHandler: requireRole(['owner', 'admin', 'manager'])
+        }, assignmentController.reassignLeads);
+        protectedApp.get('/api/assignments/workload', {
+            preHandler: requireRole(['owner', 'admin', 'manager'])
+        }, assignmentController.getAgentWorkload);
+        
+        // Zoho Sync routes (owner/admin only)
+        protectedApp.post('/api/sync/call-log/:callLogId', {
+            preHandler: requireRole(['owner', 'admin'])
+        }, syncController.syncCallLog);
+        
+        protectedApp.post('/api/sync/activity/:activityId', {
+            preHandler: requireRole(['owner', 'admin'])
+        }, syncController.syncActivity);
+        
+        protectedApp.post('/api/sync/site-visit/:siteVisitId', {
+            preHandler: requireRole(['owner', 'admin'])
+        }, syncController.syncSiteVisit);
+        
+        protectedApp.post('/api/sync/pending', {
+            preHandler: requireRole(['owner', 'admin'])
+        }, syncController.syncAllPending);
     });
 
     // Twilio voice webhook (no auth - called by Twilio)

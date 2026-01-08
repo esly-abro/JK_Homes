@@ -1,8 +1,8 @@
 #!/usr/bin/env pwsh
-# Start All LeadFlow Services
+# Start All JK Homes Services
 # This script starts the app-backend, zoho-lead-backend, and frontend
 
-Write-Host "🚀 Starting LeadFlow Application..." -ForegroundColor Cyan
+Write-Host "🚀 Starting JK Homes Application..." -ForegroundColor Cyan
 Write-Host "=================================" -ForegroundColor Cyan
 Write-Host ""
 

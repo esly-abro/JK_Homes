@@ -1,4 +1,4 @@
-# LeadFlow - Quick Start Guide
+# JK Homes - Quick Start Guide
 
 ## 🚀 Starting the Application
 

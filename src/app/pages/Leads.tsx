@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useData, Lead } from '../context/DataContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -6,7 +6,7 @@ import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import {
   Plus, Upload, Filter, Search, Phone, Mail, Calendar,
-  MoreHorizontal, Layout, LayoutList, Table as TableIcon, Headphones, X, Download, User, Building
+  MoreHorizontal, Layout, LayoutList, Table as TableIcon, Headphones, X, Download, User, Building, UserCheck, Home
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
@@ -19,57 +19,117 @@ import {
 import { createLead } from '../../services/leads';
 import { Label } from '../components/ui/label';
 import ImportLeadsDialog from '../components/ImportLeadsDialog';
+import { assignLeads } from '../../services/assignments';
+import { getUsers } from '../../services/leads';
+import { getProperties } from '../../services/properties';
 import * as XLSX from 'xlsx';
 
 // --- Sub-Components for Different Views ---
 
-const LeadsTable = ({ leads }: { leads: Lead[] }) => (
-  <Card className="overflow-hidden">
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr className="border-b border-gray-200 bg-slate-50">
-            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Name</th>
-            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Phone</th>
-            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Source</th>
-            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Status</th>
-            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Last Action</th>
-            <th className="px-6 py-4"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {leads.map((lead) => (
-            <tr key={lead.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-              <td className="px-6 py-4 text-sm text-gray-900 font-medium">{lead.name}</td>
-              <td className="px-6 py-4 text-sm text-gray-700">{lead.phone}</td>
-              <td className="px-6 py-4 text-sm text-gray-700">{lead.source}</td>
-              <td className="px-6 py-4">
-                <StatusBadge status={lead.status} />
-              </td>
-              <td className="px-6 py-4 text-sm text-gray-700">
-                {lead.lastActivity ? new Date(lead.lastActivity).toLocaleDateString() : '-'}
-              </td>
-              <td className="px-6 py-4">
-                <Link to={`/leads/${lead.id}`}>
-                  <Button variant="outline" size="sm" className="rounded-md border-blue-300 text-blue-600 hover:bg-blue-50">
-                    Call Agent
-                  </Button>
-                </Link>
-              </td>
+const LeadsTable = ({ 
+  leads, 
+  selectedLeads, 
+  onSelectLead, 
+  onSelectAll,
+  properties 
+}: { 
+  leads: Lead[];
+  selectedLeads: Set<string>;
+  onSelectLead: (leadId: string) => void;
+  onSelectAll: (checked: boolean) => void;
+  properties: any[];
+}) => {
+  const allSelected = leads.length > 0 && leads.every(lead => selectedLeads.has(lead.id));
+  
+  return (
+    <Card className="overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-gray-200 bg-slate-50">
+              <th className="px-4 py-4 text-left">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={(e) => onSelectAll(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+              </th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Name</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Phone</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Property</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Assigned To</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Source</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Status</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Last Action</th>
+              <th className="px-6 py-4"></th>
             </tr>
-          ))}
-          {leads.length === 0 && (
-            <tr>
-              <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                No leads found matching your criteria.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-  </Card>
-);
+          </thead>
+          <tbody>
+            {leads.map((lead) => {
+              const property = properties.find(p => p._id === lead.propertyId);
+              const ownerName = typeof lead.owner === 'string' ? lead.owner : lead.owner?.name || 'Unassigned';
+              
+              return (
+                <tr key={lead.id} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${selectedLeads.has(lead.id) ? 'bg-blue-50' : ''}`}>
+                  <td className="px-4 py-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedLeads.has(lead.id)}
+                      onChange={() => onSelectLead(lead.id)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900 font-medium">{lead.name}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700">{lead.phone}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700">
+                    {property ? (
+                      <div className="flex items-center gap-1">
+                        <Home className="h-3 w-3 text-blue-500" />
+                        <span className="truncate max-w-[150px]" title={property.name}>
+                          {property.name}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 italic">No property</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-700">
+                    <div className="flex items-center gap-1">
+                      <User className="h-3 w-3 text-gray-400" />
+                      {ownerName}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-700">{lead.source}</td>
+                  <td className="px-6 py-4">
+                    <StatusBadge status={lead.status} />
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-700">
+                    {lead.lastActivity ? new Date(lead.lastActivity).toLocaleDateString() : '-'}
+                  </td>
+                  <td className="px-6 py-4">
+                    <Link to={`/leads/${lead.id}`}>
+                      <Button variant="outline" size="sm" className="rounded-md border-blue-300 text-blue-600 hover:bg-blue-50">
+                        Call Agent
+                      </Button>
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
+            {leads.length === 0 && (
+              <tr>
+                <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
+                  No leads found matching your criteria.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+};
 
 const LeadsList = ({ leads }: { leads: Lead[] }) => (
   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -122,7 +182,7 @@ const LeadsList = ({ leads }: { leads: Lead[] }) => (
 );
 
 const LeadsKanban = ({ leads }: { leads: Lead[] }) => {
-  const statuses = ['New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Closed'];
+  const statuses = ['New', 'Follow-up Completed', 'Site Visit Scheduled', 'Site Visit Completed', 'Interested', 'Negotiation', 'Deal Closed', 'Not Interested'];
   // Include statuses that are in leads but not in the default list
   const allStatuses = Array.from(new Set([...statuses, ...leads.map(l => l.status)]));
 
@@ -173,21 +233,21 @@ const LeadsKanban = ({ leads }: { leads: Lead[] }) => {
 const StatusBadge = ({ status }: { status: string }) => {
   const getStatusStyles = (s: string) => {
     switch (s) {
-      case 'WhatsApp Sent':
+      case 'Follow-up Completed':
       case 'Contacted':
+      case 'Call Attended':
         return 'bg-blue-100 text-blue-700 hover:bg-blue-100';
       case 'No Response':
       case 'New':
         return 'bg-yellow-100 text-yellow-700 hover:bg-yellow-100';
-      case 'IVR Attempted':
-      case 'Proposal Sent':
-      case 'Proposal':
-        return 'bg-purple-100 text-purple-700 hover:bg-purple-100';
-      case 'Human Call Scheduled':
-      case 'Qualified':
-      case 'Negotiation':
+      case 'Site Visit Scheduled':
       case 'Site Visit Booked':
+        return 'bg-purple-100 text-purple-700 hover:bg-purple-100';
+      case 'Site Visit Completed':
+      case 'Interested':
+      case 'Negotiation':
         return 'bg-green-100 text-green-700 hover:bg-green-100';
+      case 'Deal Closed':
       case 'Closed':
         return 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100';
       case 'Lost':
@@ -208,14 +268,23 @@ const StatusBadge = ({ status }: { status: string }) => {
 
 export default function Leads() {
   const { leads, loading, error, refreshLeads } = useData();
-  const [view, setView] = useState<'list' | 'kanban' | 'table'>('table'); // Default to table to match previous behavior
+  const [view, setView] = useState<'list' | 'kanban' | 'table'>('table');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sourceFilter, setSourceFilter] = useState('all');
+  const [ownerFilter, setOwnerFilter] = useState('all'); // New filter
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [creating, setCreating] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
+  const [users, setUsers] = useState<any[]>([]);
+  const [properties, setProperties] = useState<any[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<string>('');
+  const [autoAssign, setAutoAssign] = useState(false);
+  
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -224,14 +293,103 @@ export default function Leads() {
     source: 'Website'
   });
 
+  useEffect(() => {
+    fetchUsers();
+    fetchProperties();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const data = await getUsers();
+      setUsers(data);
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+    }
+  };
+
+  const fetchProperties = async () => {
+    try {
+      const data = await getProperties();
+      setProperties(data);
+    } catch (error) {
+      console.error('Failed to fetch properties:', error);
+    }
+  };
+
+  const handleSelectLead = (leadId: string) => {
+    const newSelected = new Set(selectedLeads);
+    if (newSelected.has(leadId)) {
+      newSelected.delete(leadId);
+    } else {
+      newSelected.add(leadId);
+    }
+    setSelectedLeads(newSelected);
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedLeads(new Set(filteredLeads.map(lead => lead.id)));
+    } else {
+      setSelectedLeads(new Set());
+    }
+  };
+
+  const handleBulkAssign = async () => {
+    if (selectedLeads.size === 0) {
+      alert('Please select at least one lead to assign');
+      return;
+    }
+
+    if (!autoAssign && !selectedAgent) {
+      alert('Please select an agent or enable auto-assign');
+      return;
+    }
+
+    try {
+      setAssigning(true);
+      const leadIds = Array.from(selectedLeads);
+      const result = await assignLeads(leadIds, selectedAgent || undefined, autoAssign);
+      
+      const successCount = result.results.filter(r => r.success).length;
+      const failCount = result.results.filter(r => !r.success).length;
+      
+      alert(`Successfully assigned ${successCount} lead(s)${failCount > 0 ? `, ${failCount} failed` : ''}`);
+      
+      setSelectedLeads(new Set());
+      setShowAssignDialog(false);
+      setSelectedAgent('');
+      setAutoAssign(false);
+      await refreshLeads();
+    } catch (error: any) {
+      console.error('Failed to assign leads:', error);
+      alert(error.response?.data?.error || 'Failed to assign leads');
+    } finally {
+      setAssigning(false);
+    }
+  };
+
   const filteredLeads = leads.filter(lead => {
     const matchesSearch = lead.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       lead.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      lead.company?.toLowerCase().includes(searchQuery.toLowerCase()); // Added optional chaining for company
+      lead.company?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
     const matchesSource = sourceFilter === 'all' || lead.source === sourceFilter;
+    
+    // Owner filter - "my-leads" or specific owner
+    let matchesOwner = true;
+    if (ownerFilter !== 'all') {
+      if (ownerFilter === 'my-leads') {
+        // TODO: Check against current user
+        matchesOwner = true; // Placeholder
+      } else if (ownerFilter === 'unassigned') {
+        matchesOwner = !lead.owner || lead.owner === 'Unassigned';
+      } else {
+        const ownerId = typeof lead.owner === 'string' ? lead.owner : lead.owner?.id;
+        matchesOwner = ownerId === ownerFilter;
+      }
+    }
 
-    return matchesSearch && matchesStatus && matchesSource;
+    return matchesSearch && matchesStatus && matchesSource && matchesOwner;
   });
 
   const handleExportLeads = async () => {
@@ -321,6 +479,12 @@ export default function Leads() {
           <p className="text-gray-600">Manage and track all your leads in one place</p>
         </div>
         <div className="flex gap-2">
+          {selectedLeads.size > 0 && (
+            <Button onClick={() => setShowAssignDialog(true)} className="bg-purple-600 hover:bg-purple-700">
+              <UserCheck className="h-4 w-4 mr-2" />
+              Assign ({selectedLeads.size})
+            </Button>
+          )}
           <Button variant="outline" onClick={handleExportLeads} disabled={exporting || leads.length === 0}>
             <Download className="h-4 w-4 mr-2" />
             {exporting ? 'Exporting...' : 'Export'}
@@ -350,6 +514,22 @@ export default function Leads() {
               />
             </div>
 
+            <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Assigned To" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Leads</SelectItem>
+                <SelectItem value="my-leads">My Leads</SelectItem>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                {users.filter(u => ['agent', 'bpo', 'manager'].includes(u.role)).map(user => (
+                  <SelectItem key={user._id} value={user._id}>
+                    {user.name || user.email.split('@')[0]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Status" />
@@ -361,7 +541,6 @@ export default function Leads() {
                 <SelectItem value="No Response">No Response</SelectItem>
                 <SelectItem value="Not Interested">Not Interested</SelectItem>
                 <SelectItem value="Site Visit Booked">Site Visit Booked</SelectItem>
-                {/* Dynamically add other statuses found in filtering */}
                 {Array.from(new Set(leads.map(l => l.status)))
                   .filter(s => !['New', 'Call Attended', 'No Response', 'Not Interested', 'Site Visit Booked'].includes(s))
                   .map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)
@@ -420,10 +599,92 @@ export default function Leads() {
 
       {/* Content Area */}
       <div className="flex-1 overflow-auto min-h-0">
-        {view === 'table' && <LeadsTable leads={filteredLeads} />}
+        {view === 'table' && (
+          <LeadsTable 
+            leads={filteredLeads} 
+            selectedLeads={selectedLeads}
+            onSelectLead={handleSelectLead}
+            onSelectAll={handleSelectAll}
+            properties={properties}
+          />
+        )}
         {view === 'list' && <LeadsList leads={filteredLeads} />}
         {view === 'kanban' && <LeadsKanban leads={filteredLeads} />}
       </div>
+
+      {/* Bulk Assignment Dialog */}
+      {showAssignDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">Assign Leads</h2>
+              <button
+                onClick={() => setShowAssignDialog(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  <strong>{selectedLeads.size}</strong> lead(s) selected for assignment
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="autoAssign"
+                  checked={autoAssign}
+                  onChange={(e) => {
+                    setAutoAssign(e.target.checked);
+                    if (e.target.checked) setSelectedAgent('');
+                  }}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <Label htmlFor="autoAssign" className="cursor-pointer flex-1">
+                  <div className="font-medium text-gray-900">Auto-Assign with Smart Rules</div>
+                  <div className="text-xs text-gray-600">Automatically assign based on workload, property type & location</div>
+                </Label>
+              </div>
+
+              {!autoAssign && (
+                <div>
+                  <Label htmlFor="agent">Select Agent *</Label>
+                  <Select value={selectedAgent} onValueChange={setSelectedAgent}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose an agent..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {users.filter(u => ['agent', 'bpo', 'manager'].includes(u.role)).map(user => (
+                        <SelectItem key={user._id} value={user._id}>
+                          {user.name || user.email.split('@')[0]} ({user.role})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowAssignDialog(false)}
+                  className="flex-1"
+                  disabled={assigning}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleBulkAssign} className="flex-1" disabled={assigning}>
+                  {assigning ? 'Assigning...' : `Assign Lead${selectedLeads.size > 1 ? 's' : ''}`}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Lead Dialog */}
       {showAddDialog && (
@@ -447,7 +708,7 @@ export default function Leads() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
-                  placeholder="John Doe"
+                  placeholder="Lead name"
                 />
               </div>
 

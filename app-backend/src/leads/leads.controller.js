@@ -41,8 +41,194 @@ async function createLead(request, reply) {
     return reply.code(201).send(result);
 }
 
+/**
+ * PUT /api/leads/:id
+ * Update a lead
+ */
+async function updateLead(request, reply) {
+    const { id } = request.params;
+    const updateData = request.body;
+
+    const lead = await leadsService.updateLead(request.user, id, updateData);
+
+    return reply.code(200).send(lead);
+}
+
+/**
+ * PATCH /api/leads/:id/status
+ * Update lead status only
+ */
+async function updateLeadStatus(request, reply) {
+    const { id } = request.params;
+    const { status } = request.body;
+
+    const lead = await leadsService.updateLead(request.user, id, { status });
+
+    return reply.code(200).send(lead);
+}
+
+/**
+ * POST /api/leads/:id/site-visit
+ */
+async function postSiteVisit(request, reply) {
+    const leadId = request.params.id;
+    const { scheduledAt } = request.body;
+    const userId = request.user._id;
+    const visit = await leadsService.confirmSiteVisit(leadId, scheduledAt, userId);
+    return reply.code(201).send(visit);
+}
+
+/**
+ * GET /api/site-visits/today
+ */
+async function getTodaySiteVisits(request, reply) {
+    const userId = request.user._id;
+    const visits = await leadsService.getSiteVisitsForToday(userId);
+    return reply.send(visits);
+}
+
+/**
+ * POST /api/activities
+ */
+async function postActivity(request, reply) {
+    const activity = await leadsService.createActivity(request.body);
+    return reply.code(201).send(activity);
+}
+
+/**
+ * GET /api/activities/recent
+ */
+async function getRecentActivitiesHandler(request, reply) {
+    const activities = await leadsService.getRecentActivities(50);
+    return reply.send(activities);
+}
+
+/**
+ * GET /api/activities/me - Get current user's activities
+ */
+async function getMyActivities(request, reply) {
+    const userId = request.user._id;
+    const limit = parseInt(request.query.limit) || 50;
+    const activities = await leadsService.getActivitiesByUser(userId, limit);
+    return reply.send(activities);
+}
+
+/**
+ * GET /api/activities/all - Get all activities (owner/admin/manager only)
+ */
+async function getAllActivitiesHandler(request, reply) {
+    const limit = parseInt(request.query.limit) || 100;
+    const activities = await leadsService.getAllActivities(limit);
+    return reply.send(activities);
+}
+
+/**
+ * GET /api/call-logs/me - Get current user's call logs
+ */
+async function getMyCallLogs(request, reply) {
+    const userId = request.user._id;
+    const limit = parseInt(request.query.limit) || 50;
+    const callLogs = await leadsService.getCallLogsByUser(userId, limit);
+    return reply.send(callLogs);
+}
+
+/**
+ * GET /api/call-logs/all - Get all call logs (owner/admin/manager only)
+ */
+async function getAllCallLogsHandler(request, reply) {
+    const limit = parseInt(request.query.limit) || 100;
+    const callLogs = await leadsService.getAllCallLogs(limit);
+    return reply.send(callLogs);
+}
+
+/**
+ * GET /api/site-visits/me - Get current user's site visits
+ */
+async function getMySiteVisits(request, reply) {
+    const userId = request.user._id;
+    const limit = parseInt(request.query.limit) || 50;
+    const visits = await leadsService.getSiteVisitsByUser(userId, limit);
+    return reply.send(visits);
+}
+
+/**
+ * GET /api/site-visits/all - Get all site visits (owner/admin/manager only)
+ */
+async function getAllSiteVisitsHandler(request, reply) {
+    const limit = parseInt(request.query.limit) || 100;
+    const visits = await leadsService.getAllSiteVisits(limit);
+    return reply.send(visits);
+}
+
+/**
+ * GET /api/tasks - Get tasks/reminders for current user
+ */
+async function getTasks(request, reply) {
+    const userId = request.user._id;
+    const { status, priority } = request.query;
+    const tasks = await leadsService.getTasks(userId, { status, priority });
+    return reply.send(tasks);
+}
+
+/**
+ * POST /api/tasks - Create a new task
+ */
+async function createTask(request, reply) {
+    const userId = request.user._id;
+    const userName = request.user.name || request.user.email;
+    const taskData = { ...request.body, userId, userName };
+    const task = await leadsService.createTask(taskData);
+    return reply.code(201).send(task);
+}
+
+/**
+ * PATCH /api/tasks/:id - Update task (mark complete, change priority, etc.)
+ */
+async function updateTask(request, reply) {
+    const { id } = request.params;
+    const userId = request.user._id;
+    const updates = request.body;
+    const task = await leadsService.updateTask(id, userId, updates);
+    return reply.send(task);
+}
+
+/**
+ * DELETE /api/tasks/:id - Delete a task
+ */
+async function deleteTask(request, reply) {
+    const { id } = request.params;
+    const userId = request.user._id;
+    await leadsService.deleteTask(id, userId);
+    return reply.code(204).send();
+}
+
+/**
+ * GET /api/users - Get all users (for team members list)
+ */
+async function getUsers(request, reply) {
+    const users = await leadsService.getUsers();
+    return reply.send(users);
+}
+
 module.exports = {
     getLeads,
     getLead,
-    createLead
+    createLead,
+    updateLead,
+    updateLeadStatus,
+    postSiteVisit,
+    getTodaySiteVisits,
+    postActivity,
+    getRecentActivitiesHandler,
+    getMyActivities,
+    getAllActivitiesHandler,
+    getMyCallLogs,
+    getAllCallLogsHandler,
+    getMySiteVisits,
+    getAllSiteVisitsHandler,
+    getTasks,
+    createTask,
+    updateTask,
+    deleteTask,
+    getUsers
 };

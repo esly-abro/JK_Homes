@@ -22,6 +22,20 @@ async function login(email, password) {
         throw new UnauthorizedError('Invalid email or password');
     }
 
+    // Check if user is approved
+    if (user.approvalStatus !== 'approved') {
+        if (user.approvalStatus === 'pending') {
+            throw new UnauthorizedError('Your account is pending approval from the owner');
+        } else if (user.approvalStatus === 'rejected') {
+            throw new UnauthorizedError('Your account registration was rejected');
+        }
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+        throw new UnauthorizedError('Your account has been deactivated');
+    }
+
     // Verify password
     const isValidPassword = await usersModel.verifyPassword(password, user.passwordHash);
     if (!isValidPassword) {

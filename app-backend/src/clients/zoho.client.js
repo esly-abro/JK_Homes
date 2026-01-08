@@ -150,10 +150,120 @@ async function getLeadNotes(leadId) {
     }
 }
 
+/**
+ * Create a note for a lead
+ */
+async function createLeadNote(leadId, noteData) {
+    try {
+        const data = {
+            data: [
+                {
+                    Parent_Id: {
+                        id: leadId
+                    },
+                    Note_Title: noteData.Note_Title || 'Note',
+                    Note_Content: noteData.Note_Content || '',
+                    se_module: noteData.$se_module || 'Leads'
+                }
+            ]
+        };
+        
+        const result = await makeRequest('POST', '/Notes', data);
+        return { success: true, data: result.data };
+    } catch (error) {
+        console.error('Error creating lead note:', error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Create a call activity for a lead
+ */
+async function createLeadCall(leadId, callData) {
+    try {
+        const data = {
+            data: [
+                {
+                    Call_Type: callData.Call_Type || 'Outbound',
+                    Subject: callData.Subject || 'Call Activity',
+                    Call_Start_Time: callData.Call_Start_Time,
+                    Call_Duration: callData.Call_Duration || '0',
+                    Call_Result: callData.Call_Result || 'Connected',
+                    Description: callData.Description || '',
+                    Who_Id: {
+                        id: leadId
+                    },
+                    se_module: callData.$se_module || 'Leads'
+                }
+            ]
+        };
+        
+        const result = await makeRequest('POST', '/Calls', data);
+        return { success: true, data: result.data };
+    } catch (error) {
+        console.error('Error creating lead call:', error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Create a task for a lead
+ */
+async function createTask(leadId, taskData) {
+    try {
+        const data = {
+            data: [
+                {
+                    Subject: taskData.Subject || 'Task',
+                    Status: taskData.Status || 'Not Started',
+                    Due_Date: taskData.Due_Date,
+                    Description: taskData.Description || '',
+                    What_Id: {
+                        id: leadId
+                    },
+                    se_module: taskData.$se_module || 'Leads'
+                }
+            ]
+        };
+        
+        const result = await makeRequest('POST', '/Tasks', data);
+        return { success: true, data: result.data };
+    } catch (error) {
+        console.error('Error creating task:', error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Update a lead
+ */
+async function updateLead(leadId, updateData) {
+    try {
+        const data = {
+            data: [
+                {
+                    id: leadId,
+                    ...updateData
+                }
+            ]
+        };
+        
+        const result = await makeRequest('PUT', '/Leads', data);
+        return { success: true, data: result.data };
+    } catch (error) {
+        console.error('Error updating lead:', error.message);
+        return { success: false, error: error.message };
+    }
+}
+
 module.exports = {
     getAccessToken,
     searchLeads,
     getLeads,
     getLead,
-    getLeadNotes
+    getLeadNotes,
+    createLeadNote,
+    createLeadCall,
+    createTask,
+    updateLead
 };

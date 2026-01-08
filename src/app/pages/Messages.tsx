@@ -3,7 +3,7 @@ import { useData } from '../context/DataContext';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
-import { Search, Send, MoreVertical, Phone, Video } from 'lucide-react';
+import { Search, Send, MoreVertical, Phone, Video, MessageSquare } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 
 export default function Messages() {
@@ -12,6 +12,47 @@ export default function Messages() {
   const [messageText, setMessageText] = useState('');
 
   const lead = leads.find(l => l.id === selectedConversation?.leadId);
+
+  // If no messages, show coming soon
+  if (messages.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Messages</h1>
+          <p className="text-gray-600">Communicate with your leads in real-time</p>
+        </div>
+
+        <Card className="p-12">
+          <div className="text-center">
+            <MessageSquare className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">Messages Feature Coming Soon</h3>
+            <p className="text-gray-600 mb-6">
+              We're working on integrating WhatsApp and SMS messaging for seamless communication with your leads.
+            </p>
+            <div className="space-y-3 text-left max-w-md mx-auto">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span className="text-sm text-gray-700">WhatsApp Business API integration</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span className="text-sm text-gray-700">SMS messaging with Twilio</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span className="text-sm text-gray-700">Unified message threads</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span className="text-sm text-gray-700">Message templates and automation</span>
+              </div>
+            </div>
+            <Badge className="mt-6 bg-blue-600">In Development</Badge>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

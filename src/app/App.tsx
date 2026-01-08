@@ -11,7 +11,9 @@ import Activities from './pages/Activities';
 import CalendarView from './pages/CalendarView';
 import Messages from './pages/Messages';
 import Analytics from './pages/Analytics';
+import Properties from './pages/Properties';
 import Settings from './pages/Settings';
+import UserManagement from './pages/UserManagement';
 import MainLayout from './components/MainLayout';
 import { getStoredUser, User } from '../services/auth';
 
@@ -53,11 +55,13 @@ export default function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="leads" element={<Leads />} />
             <Route path="leads/:id" element={<LeadDetail />} />
+            <Route path="properties" element={<Properties />} />
             <Route path="activities" element={<Activities />} />
             <Route path="calendar" element={<CalendarView />} />
             <Route path="messages" element={<Messages />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="settings/users" element={<UserManagement />} />
           </Route>
         </Routes>
       </BrowserRouter>

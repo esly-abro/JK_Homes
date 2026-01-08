@@ -6,16 +6,22 @@ async function twilioRoutes(fastify, options) {
     preHandler: fastify.auth,
     handler: async (request, reply) => {
       const { phoneNumber, leadId, leadName } = request.body;
+      const userId = request.user._id;
 
       if (!phoneNumber) {
         return reply.status(400).send({ error: 'Phone number is required' });
       }
 
-      const result = await twilioService.makeCall(phoneNumber);
+      const result = await twilioService.makeCall(
+        phoneNumber,
+        twilioService.TWILIO_PHONE_NUMBER,
+        userId,
+        leadId,
+        leadName
+      );
 
       if (result.success) {
-        // Log the call activity (you can store this in your database)
-        console.log(`Call initiated to ${phoneNumber} for lead ${leadName || leadId}`);
+        console.log(`Call initiated by user ${userId} to ${phoneNumber} for lead ${leadName || leadId}`);
       }
 
       return reply.send(result);
@@ -55,6 +61,25 @@ async function twilioRoutes(fastify, options) {
       
       reply.header('Content-Type', 'text/xml');
       return reply.send(twiml);
+    },
+  });
+
+  // Call status webhook - receives updates from Twilio
+  fastify.post('/status', {
+    handler: async (request, reply) => {
+      const { CallSid, CallStatus, CallDuration, EndTime } = request.body;
+      
+      console.log(`Call status update: ${CallSid} -> ${CallStatus}`);
+      
+      // Update call log in MongoDB
+      await twilioService.updateCallStatus(
+        CallSid,
+        CallStatus,
+        CallDuration,
+        EndTime
+      );
+      
+      return reply.send({ success: true });
     },
   });
 }

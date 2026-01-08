@@ -15,6 +15,21 @@ const api = axios.create({
     baseURL: API_BASE_URL
 });
 
+// Track if a token refresh is in progress to prevent multiple simultaneous refreshes
+let isRefreshing = false;
+let failedQueue: any[] = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+    failedQueue.forEach(prom => {
+        if (error) {
+            prom.reject(error);
+        } else {
+            prom.resolve(token);
+        }
+    });
+    failedQueue = [];
+};
+
 // Helper function to clear auth and redirect - defined BEFORE interceptors
 function handleAuthFailure() {
     localStorage.removeItem('accessToken');
@@ -38,7 +53,24 @@ api.interceptors.request.use(config => {
 api.interceptors.response.use(
     response => response,
     async error => {
-        if (error.response?.status === 401) {
+        const originalRequest = error.config;
+
+        if (error.response?.status === 401 && !originalRequest._retry) {
+            if (isRefreshing) {
+                // If already refreshing, queue this request
+                return new Promise((resolve, reject) => {
+                    failedQueue.push({ resolve, reject });
+                }).then(token => {
+                    originalRequest.headers.Authorization = `Bearer ${token}`;
+                    return api(originalRequest);
+                }).catch(err => {
+                    return Promise.reject(err);
+                });
+            }
+
+            originalRequest._retry = true;
+            isRefreshing = true;
+
             const refreshToken = localStorage.getItem('refreshToken');
             if (!refreshToken) {
                 handleAuthFailure();
@@ -49,14 +81,21 @@ api.interceptors.response.use(
                 const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, {
                     refreshToken
                 });
-                localStorage.setItem('accessToken', data.accessToken);
-
+                const newAccessToken = data.accessToken;
+                localStorage.setItem('accessToken', newAccessToken);
+                
+                // Update all queued requests with new token
+                processQueue(null, newAccessToken);
+                
                 // Retry original request with new token
-                error.config.headers.Authorization = `Bearer ${data.accessToken}`;
-                return api(error.config);
-            } catch {
+                originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+                return api(originalRequest);
+            } catch (refreshError) {
+                processQueue(refreshError, null);
                 handleAuthFailure();
-                return Promise.reject(error);
+                return Promise.reject(refreshError);
+            } finally {
+                isRefreshing = false;
             }
         }
         return Promise.reject(error);

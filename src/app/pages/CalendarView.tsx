@@ -1,19 +1,35 @@
 import { useState } from 'react';
+import { useData } from '../context/DataContext';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 
 export default function CalendarView() {
+  const { siteVisits, activities } = useData();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'day' | 'week' | 'month'>('month');
 
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'];
 
+  // Convert site visits to events
   const events = [
-    { id: '1', title: 'Demo with Sarah Johnson', date: '2024-01-15', time: '10:00 AM', color: 'bg-blue-500' },
-    { id: '2', title: 'Follow-up call', date: '2024-01-16', time: '2:00 PM', color: 'bg-green-500' },
-    { id: '3', title: 'Team meeting', date: '2024-01-17', time: '9:00 AM', color: 'bg-purple-500' },
+    ...siteVisits.map(visit => ({
+      id: visit._id,
+      title: `Site visit - ${visit.lead?.name || 'Client'}`,
+      date: new Date(visit.scheduledAt).toISOString().split('T')[0],
+      time: new Date(visit.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      color: 'bg-purple-500'
+    })),
+    ...activities
+      .filter(a => a.type === 'meeting' && a.scheduledAt)
+      .map(activity => ({
+        id: activity.id || activity._id,
+        title: activity.title || activity.description,
+        date: new Date(activity.scheduledAt!).toISOString().split('T')[0],
+        time: new Date(activity.scheduledAt!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        color: 'bg-blue-500'
+      }))
   ];
 
   const getDaysInMonth = (date: Date) => {

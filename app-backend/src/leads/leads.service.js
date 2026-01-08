@@ -9,6 +9,14 @@ const { mapZohoLeadToFrontend, mapZohoNoteToActivity } = require('./zoho.mapper'
 const { filterLeadsByPermission } = require('../middleware/roles');
 const { NotFoundError } = require('../utils/errors');
 
+// MongoDB Lead model
+const Lead = require('../models/Lead');
+const SiteVisit = require('../models/SiteVisit');
+const Activity = require('../models/Activity');
+
+// Check if MongoDB is available
+const useDatabase = () => !!process.env.MONGODB_URI;
+
 // Demo mode flag - only enabled when explicitly set
 const isDemoMode = process.env.DEMO_MODE === 'true';
 
@@ -35,7 +43,7 @@ const mockLeads = [
         phone: '+1 555-0102',
         company: 'TechStart Inc',
         source: 'LinkedIn Ads',
-        status: 'Contacted',
+        status: 'Follow-up Completed',
         score: 72,
         assignedTo: 'user_002',
         createdAt: new Date(Date.now() - 86400000).toISOString(),
@@ -49,7 +57,7 @@ const mockLeads = [
         phone: '+1 555-0103',
         company: 'Global Tech',
         source: 'Google Ads',
-        status: 'Qualified',
+        status: 'Site Visit Scheduled',
         score: 91,
         assignedTo: 'user_003',
         createdAt: new Date(Date.now() - 172800000).toISOString(),
@@ -63,7 +71,7 @@ const mockLeads = [
         phone: '+1 555-0104',
         company: 'Innovate Co',
         source: 'Referral',
-        status: 'Proposal',
+        status: 'Interested',
         score: 88,
         assignedTo: 'user_002',
         createdAt: new Date(Date.now() - 259200000).toISOString(),
@@ -121,6 +129,7 @@ async function getLeads(user, { page = 1, limit = 20, status, source, owner }) {
         };
     }
 
+    // Always fetch leads from Zoho CRM (single source of truth)
     // Build search criteria
     const criteria = [];
 
@@ -186,6 +195,7 @@ async function getLead(user, leadId) {
         return { ...lead, activities: [] };
     }
 
+    // Always fetch lead from Zoho CRM (single source of truth)
     // Fetch lead from Zoho
     const zohoResponse = await zohoClient.getLead(leadId);
 
@@ -239,7 +249,8 @@ async function createLead(leadData) {
         return { success: true, lead: newLead };
     }
 
-    // Forward to ingestion service
+    // Always create in Zoho CRM (single source of truth)
+    // Forward to ingestion service which creates in Zoho
     return await ingestionClient.createLead(leadData);
 }
 
@@ -258,8 +269,326 @@ function mapFrontendSourceToZoho(source) {
     return map[source] || source;
 }
 
+/**
+ * Update lead
+ */
+async function updateLead(user, leadId, updateData) {
+    // Demo mode - update in memory (won't persist)
+    if (isDemoMode) {
+        const index = mockLeads.findIndex(l => l.id === leadId);
+        if (index === -1) {
+            throw new NotFoundError('Lead not found');
+        }
+        mockLeads[index] = { ...mockLeads[index], ...updateData, updatedAt: new Date().toISOString() };
+        return mockLeads[index];
+    }
+    
+    // Update lead in Zoho CRM
+    const zohoUpdateData = mapFrontendToZohoFields(updateData);
+    const result = await zohoClient.updateLead(leadId, zohoUpdateData);
+    
+    if (!result.success) {
+        throw new ExternalServiceError('Zoho CRM', new Error(result.error));
+    }
+    
+    // Fetch updated lead to return
+    return await getLead(user, leadId);
+}
+
+/**
+ * Map frontend field names to Zoho CRM field names
+ */
+function mapFrontendToZohoFields(data) {
+    const mapping = {
+        name: 'Last_Name',
+        email: 'Email',
+        phone: 'Phone',
+        company: 'Company',
+        source: 'Lead_Source',
+        status: 'Lead_Status'
+    };
+    
+    const zohoData = {};
+    for (const [key, value] of Object.entries(data)) {
+        if (mapping[key]) {
+            zohoData[mapping[key]] = value;
+        }
+    }
+    return zohoData;
+}
+
+/**
+ * Confirm site visit
+ */
+async function confirmSiteVisit(leadId, scheduledAt, userId) {
+    // Fetch lead from Zoho to get details (pass a dummy user for now)
+    // In production, this should receive the user object
+    const lead = await zohoClient.getLead(leadId);
+    const zohoLead = lead.data && lead.data[0];
+    
+    // Create a new site visit with updated schema
+    const visit = await SiteVisit.create({
+        leadId: leadId,
+        leadName: zohoLead?.Full_Name || zohoLead?.Last_Name || 'Unknown',
+        leadPhone: zohoLead?.Phone || zohoLead?.Mobile || '',
+        scheduledAt,
+        agentId: userId,
+        status: 'scheduled',
+        syncStatus: 'pending'
+    });
+    
+    return visit;
+}
+
+/**
+ * Get site visits for today
+ */
+async function getSiteVisitsForToday(userId) {
+    const start = new Date();
+    start.setHours(0,0,0,0);
+    const end = new Date();
+    end.setHours(23,59,59,999);
+    
+    // Use agentId instead of confirmedBy
+    const visits = await SiteVisit.find({
+        agentId: userId,
+        scheduledAt: { $gte: start, $lte: end }
+    }).populate('agentId', 'name email');
+    
+    // Map visits to include lead data from Zoho if needed
+    return visits;
+}
+
+/**
+ * Create activity
+ */
+async function createActivity(activityData) {
+    return Activity.create(activityData);
+}
+
+/**
+ * Get recent activities (all users)
+ */
+async function getRecentActivities(limit = 50) {
+    return Activity.getRecent(limit);
+}
+
+/**
+ * Get activities by user ID (for agent's own activities)
+ */
+async function getActivitiesByUser(userId, limit = 50) {
+    return Activity.find({ userId })
+        .sort({ createdAt: -1 })
+        .limit(parseInt(limit))
+        .populate('userId', 'name email');
+}
+
+/**
+ * Get all activities (for owner/admin/manager)
+ */
+async function getAllActivities(limit = 100) {
+    return Activity.find()
+        .sort({ createdAt: -1 })
+        .limit(parseInt(limit))
+        .populate('userId', 'name email');
+}
+
+/**
+ * Get call logs by user ID (for agent's own calls)
+ */
+async function getCallLogsByUser(userId, limit = 50) {
+    const CallLog = require('../models/CallLog');
+    return CallLog.find({ agentId: userId })
+        .sort({ createdAt: -1 })
+        .limit(parseInt(limit))
+        .populate('agentId', 'name email');
+}
+
+/**
+ * Get all call logs (for owner/admin/manager)
+ */
+async function getAllCallLogs(limit = 100) {
+    const CallLog = require('../models/CallLog');
+    return CallLog.find()
+        .sort({ createdAt: -1 })
+        .limit(parseInt(limit))
+        .populate('agentId', 'name email');
+}
+
+/**
+ * Get site visits by user ID (for agent's own visits)
+ */
+async function getSiteVisitsByUser(userId, limit = 50) {
+    return SiteVisit.find({ agentId: userId })
+        .sort({ scheduledAt: -1 })
+        .limit(parseInt(limit))
+        .populate('agentId', 'name email');
+}
+
+/**
+ * Get all site visits (for owner/admin/manager)
+ */
+async function getAllSiteVisits(limit = 100) {
+    return SiteVisit.find()
+        .sort({ scheduledAt: -1 })
+        .limit(parseInt(limit))
+        .populate('agentId', 'name email');
+}
+
+/**
+ * Get tasks/reminders for a user
+ */
+async function getTasks(userId, { status, priority } = {}) {
+    const query = { userId, type: 'task' };
+    
+    if (status === 'completed') {
+        query.isCompleted = true;
+    } else if (status === 'pending') {
+        query.isCompleted = false;
+    }
+    
+    if (priority) {
+        query['metadata.priority'] = priority;
+    }
+    
+    return Activity.find(query)
+        .sort({ scheduledAt: 1, createdAt: -1 })
+        .limit(100);
+}
+
+/**
+ * Create a new task
+ */
+async function createTask(taskData) {
+    const { userId, userName, title, description, scheduledAt, priority, leadId } = taskData;
+    
+    const task = new Activity({
+        leadId: leadId || 'general',
+        type: 'task',
+        title,
+        description,
+        userId,
+        userName,
+        scheduledAt: scheduledAt || new Date(),
+        isCompleted: false,
+        metadata: {
+            priority: priority || 'medium'
+        }
+    });
+    
+    return task.save();
+}
+
+/**
+ * Update a task
+ */
+async function updateTask(taskId, userId, updates) {
+    const task = await Activity.findOne({ _id: taskId, userId, type: 'task' });
+    
+    if (!task) {
+        throw new NotFoundError('Task not found or access denied');
+    }
+    
+    if (updates.isCompleted !== undefined) {
+        task.isCompleted = updates.isCompleted;
+        if (updates.isCompleted) {
+            task.completedAt = new Date();
+        }
+    }
+    
+    if (updates.title) task.title = updates.title;
+    if (updates.description) task.description = updates.description;
+    if (updates.scheduledAt) task.scheduledAt = updates.scheduledAt;
+    
+    if (updates.priority) {
+        task.metadata = task.metadata || {};
+        task.metadata.priority = updates.priority;
+    }
+    
+    return task.save();
+}
+
+/**
+ * Delete a task
+ */
+async function deleteTask(taskId, userId) {
+    const result = await Activity.deleteOne({ _id: taskId, userId, type: 'task' });
+    
+    if (result.deletedCount === 0) {
+        throw new NotFoundError('Task not found or access denied');
+    }
+    
+    return result;
+}
+
+/**
+ * Get all users from MongoDB
+ */
+async function getUsers() {
+    const User = require('../models/User');
+    return User.find()
+        .select('name email role createdAt')
+        .sort({ name: 1 });
+}
+
+/**
+ * Get leads by owner ID
+ */
+async function getLeadsByOwner(ownerId) {
+    try {
+        // Fetch all leads from Zoho and filter by owner
+        const zohoResponse = await zohoClient.getLeads(1, 200); // Get more leads
+        const allLeads = (zohoResponse.data || []).map(mapZohoLeadToFrontend);
+        
+        // Filter by owner
+        const ownerLeads = allLeads.filter(lead => {
+            const leadOwner = typeof lead.owner === 'string' ? lead.owner : lead.owner?.id;
+            return leadOwner === ownerId;
+        });
+        
+        return ownerLeads;
+    } catch (error) {
+        console.error('Get leads by owner error:', error);
+        return [];
+    }
+}
+
+/**
+ * Get lead by ID (without user permission check)
+ */
+async function getLeadById(leadId) {
+    try {
+        const zohoResponse = await zohoClient.getLead(leadId);
+        if (!zohoResponse || !zohoResponse.data || zohoResponse.data.length === 0) {
+            throw new NotFoundError('Lead not found');
+        }
+        return mapZohoLeadToFrontend(zohoResponse.data[0]);
+    } catch (error) {
+        console.error('Get lead by ID error:', error);
+        throw error;
+    }
+}
+
 module.exports = {
     getLeads,
     getLead,
-    createLead
+    getLeadById,
+    getLeadsByOwner,
+    createLead,
+    updateLead,
+    confirmSiteVisit,
+    getSiteVisitsForToday,
+    createActivity,
+    getRecentActivities,
+    getActivitiesByUser,
+    getAllActivities,
+    getCallLogsByUser,
+    getAllCallLogs,
+    getSiteVisitsByUser,
+    getAllSiteVisits,
+    getTasks,
+    createTask,
+    updateTask,
+    deleteTask,
+    getUsers
 };

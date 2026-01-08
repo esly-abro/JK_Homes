@@ -1,8 +1,8 @@
 #!/usr/bin/env pwsh
-# Stop All LeadFlow Services
+# Stop All JK Homes Services
 # This script stops all running node processes
 
-Write-Host "🛑 Stopping LeadFlow Application..." -ForegroundColor Red
+Write-Host "🛑 Stopping JK Homes Application..." -ForegroundColor Red
 Write-Host "===================================" -ForegroundColor Red
 Write-Host ""
 

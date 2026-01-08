@@ -30,6 +30,12 @@ const config = {
     nodeEnv: process.env.NODE_ENV || 'development',
     port: parseInt(process.env.PORT, 10) || 4000,
 
+    // MongoDB
+    mongodb: {
+        uri: process.env.MONGODB_URI || null, // null = use in-memory fallback
+        dbName: process.env.MONGODB_DB_NAME || 'leadflow'
+    },
+
     // JWT
     jwt: {
         secret: process.env.JWT_SECRET,
@@ -52,9 +58,15 @@ const config = {
         apiKey: process.env.INGESTION_SERVICE_API_KEY
     },
 
-    // CORS
+    // CORS - allow multiple localhost ports in development
     cors: {
-        origin: process.env.FRONTEND_URL || 'http://localhost:5173'
+        origin: process.env.FRONTEND_URL || [
+            'http://localhost:5173',
+            'http://localhost:5174',
+            'http://localhost:5175',
+            'http://localhost:5176',
+            'http://localhost:3000'
+        ]
     }
 };
 

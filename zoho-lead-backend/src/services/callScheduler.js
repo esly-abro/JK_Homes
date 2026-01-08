@@ -5,7 +5,6 @@
 
 const exotelClient = require('./exotelClient');
 const twilioClient = require('./twilioClient');
-const elevenLabsClient = require('./elevenLabsClient');
 const config = require('../config/config');
 const logger = require('../utils/logger');
 
@@ -15,29 +14,15 @@ class CallScheduler {
         this.callHistory = new Map(); // Track call attempts
         this.isShuttingDown = false;
 
-        // Determine which provider to use (ElevenLabs takes priority)
-        if (config.elevenlabs.enabled && config.twilio.enabled) {
-            this.provider = 'elevenlabs';
-            this.callDelayMs = config.twilio.callDelayMs;
-            this.maxRetries = config.twilio.maxRetries;
-            logger.info('🤖 AI-Powered Calling ENABLED with ElevenLabs + Twilio');
-        } else if (config.twilio.enabled) {
-            this.provider = 'twilio';
-            this.callDelayMs = config.twilio.callDelayMs;
-            this.maxRetries = config.twilio.maxRetries;
-            logger.info('📞 Basic IVR Calling with Twilio');
-        } else {
-            this.provider = 'exotel';
-            this.callDelayMs = config.exotel.callDelayMs;
-            this.maxRetries = config.exotel.maxRetries;
-            logger.info('📞 Basic IVR Calling with Exotel');
-        }
+        // Determine which provider to use
+        this.provider = config.twilio.enabled ? 'twilio' : 'exotel';
+        this.callDelayMs = config.twilio.enabled ? config.twilio.callDelayMs : config.exotel.callDelayMs;
+        this.maxRetries = config.twilio.enabled ? config.twilio.maxRetries : config.exotel.maxRetries;
 
         logger.info('Call scheduler initialized', {
             provider: this.provider,
             delayMs: this.callDelayMs,
-            maxRetries: this.maxRetries,
-            aiEnabled: this.provider === 'elevenlabs'
+            maxRetries: this.maxRetries
         });
     }
 
@@ -48,7 +33,7 @@ class CallScheduler {
      * @param {object} options - Call options
      */
     scheduleCall(phoneNumber, leadData = {}, options = {}) {
-        if (!config.exotel.enabled && !config.twilio.enabled && !config.elevenlabs.enabled) {
+        if (!config.exotel.enabled && !config.twilio.enabled) {
             logger.info('Call scheduling skipped - No provider enabled');
             return;
         }
@@ -119,33 +104,16 @@ class CallScheduler {
         });
 
         try {
-            // Prepare call options
-            const callOptions = {
+            // Prepare Exotel options
+            const exotelOptions = {
                 customField: callId,
                 statusCallback: options.statusCallback,
                 ...options
             };
 
-            let result;
-
             // Make the call using the active provider
-            if (this.provider === 'elevenlabs') {
-                // AI-powered conversational call
-                const twilio = require('twilio')(config.twilio.accountSid, config.twilio.authToken);
-                result = await elevenLabsClient.makeAICall(phoneNumber, leadData, twilio);
-                
-                logger.info('🤖 AI call initiated', {
-                    callId,
-                    callSid: result.callSid,
-                    type: 'conversational-ai'
-                });
-            } else if (this.provider === 'twilio') {
-                // Basic IVR call
-                result = await twilioClient.makeCall(phoneNumber, callOptions);
-            } else {
-                // Exotel call
-                result = await exotelClient.makeCall(phoneNumber, callOptions);
-            }
+            const client = this.provider === 'twilio' ? twilioClient : exotelClient;
+            const result = await client.makeCall(phoneNumber, exotelOptions);
 
             if (result.success) {
                 logger.info('Call initiated successfully', {

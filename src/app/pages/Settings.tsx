@@ -1,4 +1,4 @@
-import { useState, useRef, ChangeEvent } from 'react';
+import { useState, useRef, ChangeEvent, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -6,7 +6,8 @@ import { Label } from '../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import { Switch } from '../components/ui/switch';
-import { Plus, Trash2, Phone, MessageSquare, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Phone, MessageSquare, RefreshCw, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { getUsers } from '../../services/leads';
 
 interface Profile {
   firstName: string;
@@ -71,7 +72,7 @@ interface Invoice {
 }
 
 export default function Settings() {
-
+  const [loadingTeam, setLoadingTeam] = useState(true);
 
   const [profile, setProfile] = useState<Profile>({
     firstName: 'John',
@@ -82,11 +83,33 @@ export default function Settings() {
     avatar: ''
   });
 
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([
-    { id: 1, name: 'John Doe', email: 'john@example.com', role: 'Admin', status: 'Active' },
-    { id: 2, name: 'Jane Smith', email: 'jane@example.com', role: 'Member', status: 'Active' },
-    { id: 3, name: 'Mike Johnson', email: 'mike@example.com', role: 'Member', status: 'Pending' },
-  ]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+
+  // Lead Assignment Settings
+  const [assignmentSettings, setAssignmentSettings] = useState({
+    autoAssignEnabled: true,
+    roundRobinEnabled: true,
+    propertyMatchingEnabled: true,
+    locationMatchingEnabled: true,
+    workloadBalancingEnabled: true,
+    highValueThreshold: 5000000 // ₹50L default
+  });
+
+  useEffect(() => {
+    fetchTeamMembers();
+  }, []);
+
+  const fetchTeamMembers = async () => {
+    try {
+      setLoadingTeam(true);
+      const users = await getUsers();
+      setTeamMembers(users);
+    } catch (error) {
+      console.error('Failed to fetch team members:', error);
+    } finally {
+      setLoadingTeam(false);
+    }
+  };
 
   const handleInviteMember = () => {
     const email = prompt('Enter email address of the new member:');
@@ -393,34 +416,41 @@ export default function Settings() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {teamMembers.map((member) => (
-                  <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center gap-4">
-                      <Avatar>
-                        <AvatarFallback>{member.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="font-semibold">{member.name}</div>
-                        <div className="text-sm text-gray-600">{member.email}</div>
+                {loadingTeam ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                    <span className="ml-2 text-gray-600">Loading team members...</span>
+                  </div>
+                ) : teamMembers.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    No team members found
+                  </div>
+                ) : (
+                  teamMembers.map((member) => (
+                    <div key={member._id || member.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center gap-4">
+                        <Avatar>
+                          <AvatarFallback>
+                            {member.name ? member.name.split(' ').map(n => n[0]).join('').toUpperCase() : member.email[0].toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-semibold">{member.name || member.email.split('@')[0]}</div>
+                          <div className="text-sm text-gray-600">{member.email}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm capitalize">
+                          {member.role}
+                        </span>
+                        <span className="text-sm text-gray-600 w-16 text-center capitalize">{member.status || 'Active'}</span>
+                        <div className="text-xs text-gray-500">
+                          {member.createdAt && `Joined ${new Date(member.createdAt).toLocaleDateString()}`}
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <select
-                        className="px-3 py-1 border border-gray-300 rounded-md text-sm"
-                        value={member.role}
-                        onChange={(e) => handleRoleChange(member.id, e.target.value)}
-                      >
-                        <option>Admin</option>
-                        <option>Member</option>
-                        <option>Viewer</option>
-                      </select>
-                      <span className="text-sm text-gray-600 w-16 text-center">{member.status}</span>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteMember(member.id)}>
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
@@ -494,8 +524,15 @@ export default function Settings() {
                 <Label>Default Lead Owner</Label>
                 <select className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md">
                   <option>Round Robin</option>
-                  <option>John Doe</option>
-                  <option>Jane Smith</option>
+                  {loadingTeam ? (
+                    <option disabled>Loading users...</option>
+                  ) : (
+                    teamMembers.map(member => (
+                      <option key={member._id || member.email} value={member._id || member.email}>
+                        {member.name || member.email.split('@')[0]}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -603,6 +640,107 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="automation">
+          {/* Lead Assignment Configuration */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Lead Assignment Configuration</CardTitle>
+              <p className="text-sm text-gray-600">Configure how leads are automatically assigned to agents</p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Master Toggle */}
+              <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex-1">
+                  <div className="font-semibold text-gray-900">Enable Auto-Assignment</div>
+                  <div className="text-sm text-gray-600">Automatically assign new leads to agents based on rules below</div>
+                </div>
+                <Switch
+                  checked={assignmentSettings.autoAssignEnabled}
+                  onCheckedChange={(checked) => setAssignmentSettings({ ...assignmentSettings, autoAssignEnabled: checked })}
+                />
+              </div>
+
+              {/* Assignment Rules */}
+              {assignmentSettings.autoAssignEnabled && (
+                <div className="space-y-4 pl-4 border-l-2 border-blue-200">
+                  {/* Round Robin */}
+                  <div className="flex items-start justify-between p-3 border rounded-lg hover:bg-gray-50">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">Round-Robin Distribution</div>
+                      <div className="text-sm text-gray-600">Distribute leads evenly among available agents</div>
+                    </div>
+                    <Switch
+                      checked={assignmentSettings.roundRobinEnabled}
+                      onCheckedChange={(checked) => setAssignmentSettings({ ...assignmentSettings, roundRobinEnabled: checked })}
+                    />
+                  </div>
+
+                  {/* Property Type Matching */}
+                  <div className="flex items-start justify-between p-3 border rounded-lg hover:bg-gray-50">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">Property Type Matching</div>
+                      <div className="text-sm text-gray-600">Assign leads to agents with experience in the property type</div>
+                    </div>
+                    <Switch
+                      checked={assignmentSettings.propertyMatchingEnabled}
+                      onCheckedChange={(checked) => setAssignmentSettings({ ...assignmentSettings, propertyMatchingEnabled: checked })}
+                    />
+                  </div>
+
+                  {/* Location Matching */}
+                  <div className="flex items-start justify-between p-3 border rounded-lg hover:bg-gray-50">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">Location Matching</div>
+                      <div className="text-sm text-gray-600">Assign leads to agents familiar with the location</div>
+                    </div>
+                    <Switch
+                      checked={assignmentSettings.locationMatchingEnabled}
+                      onCheckedChange={(checked) => setAssignmentSettings({ ...assignmentSettings, locationMatchingEnabled: checked })}
+                    />
+                  </div>
+
+                  {/* Workload Balancing */}
+                  <div className="flex items-start justify-between p-3 border rounded-lg hover:bg-gray-50">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">Workload Balancing</div>
+                      <div className="text-sm text-gray-600">Prioritize agents with fewer active leads</div>
+                    </div>
+                    <Switch
+                      checked={assignmentSettings.workloadBalancingEnabled}
+                      onCheckedChange={(checked) => setAssignmentSettings({ ...assignmentSettings, workloadBalancingEnabled: checked })}
+                    />
+                  </div>
+
+                  {/* High Value Threshold */}
+                  <div className="p-3 border rounded-lg">
+                    <Label htmlFor="highValueThreshold" className="font-medium text-gray-900">High-Value Lead Threshold</Label>
+                    <div className="text-sm text-gray-600 mb-3">Leads above this value get priority assignment to least busy agents</div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-gray-700">₹</span>
+                      <Input
+                        id="highValueThreshold"
+                        type="number"
+                        value={assignmentSettings.highValueThreshold}
+                        onChange={(e) => setAssignmentSettings({ ...assignmentSettings, highValueThreshold: parseInt(e.target.value) || 0 })}
+                        className="max-w-xs"
+                        step="100000"
+                      />
+                      <span className="text-sm text-gray-500">
+                        (₹{(assignmentSettings.highValueThreshold / 100000).toFixed(1)}L / ₹{(assignmentSettings.highValueThreshold / 10000000).toFixed(2)}Cr)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end pt-4 border-t">
+                <Button onClick={() => alert('Assignment settings saved! These rules will apply to future lead assignments.')}>
+                  Save Assignment Settings
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Existing Automation Rules */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Automation Rules</CardTitle>

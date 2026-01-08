@@ -1,22 +1,27 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
-import { Building2, Check } from 'lucide-react';
-import { User } from '../../services/auth';
+import { Building2, Check, AlertCircle, CheckCircle } from 'lucide-react';
+import { register } from '../../services/auth';
 
 interface SignupProps {
-  onSignup: (user: User) => void;
+  onSignup?: (user: any) => void; // Optional since we'll navigate instead
 }
 
 export default function Signup({ onSignup }: SignupProps) {
+  const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     password: '',
+    phone: '',
     company: '',
     industry: '',
     teamSize: '',
@@ -25,21 +30,59 @@ export default function Signup({ onSignup }: SignupProps) {
     terms: false
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    
     if (step < 3) {
       setStep(step + 1);
     } else {
-      // Mock user creation - in real app, this would call signup API
-      const mockUser: User = {
-        id: 'user_new',
-        email: formData.email,
-        name: formData.fullName,
-        role: 'agent'
-      };
-      onSignup(mockUser);
+      // Final step - submit registration
+      setLoading(true);
+      
+      try {
+        const response = await register(
+          formData.email,
+          formData.password,
+          formData.fullName,
+          formData.phone
+        );
+        
+        setSuccess(true);
+        console.log('Registration successful:', response);
+        
+        // Redirect to login after 3 seconds
+        setTimeout(() => {
+          navigate('/login');
+        }, 3000);
+        
+      } catch (err: any) {
+        console.error('Registration error:', err);
+        setError(err.response?.data?.message || 'Registration failed. Please try again.');
+        setLoading(false);
+      }
     }
   };
+
+  // Show success message
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-8 bg-gray-50">
+        <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-8 text-center">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="h-10 w-10 text-green-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Registration Successful!</h2>
+          <p className="text-gray-600 mb-4">
+            Your account is pending approval from the owner. You'll receive an email once your account is approved.
+          </p>
+          <p className="text-sm text-gray-500">
+            Redirecting to login page...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex">
@@ -96,13 +139,20 @@ export default function Signup({ onSignup }: SignupProps) {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-md p-3 flex items-start gap-2">
+                  <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-800">{error}</p>
+                </div>
+              )}
+
               {step === 1 && (
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="fullName">Full Name</Label>
                     <Input
                       id="fullName"
-                      placeholder="John Doe"
+                      placeholder="Your full name"
                       value={formData.fullName}
                       onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                       required
@@ -128,8 +178,19 @@ export default function Signup({ onSignup }: SignupProps) {
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       required
+                      minLength={8}
                     />
                     <p className="text-xs text-gray-500">Must be at least 8 characters</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone Number (Optional)</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="+1 (555) 123-4567"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    />
                   </div>
                 </>
               )}
@@ -236,12 +297,13 @@ export default function Signup({ onSignup }: SignupProps) {
                     variant="outline"
                     onClick={() => setStep(step - 1)}
                     className="flex-1"
+                    disabled={loading}
                   >
                     Back
                   </Button>
                 )}
-                <Button type="submit" className="flex-1">
-                  {step < 3 ? 'Continue' : 'Create Account'}
+                <Button type="submit" className="flex-1" disabled={loading || (step === 3 && !formData.terms)}>
+                  {loading ? 'Creating Account...' : step < 3 ? 'Continue' : 'Create Account'}
                 </Button>
               </div>
             </form>

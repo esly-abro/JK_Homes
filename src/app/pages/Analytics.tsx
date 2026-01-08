@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -7,41 +7,82 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 export default function Analytics() {
-  const { leads } = useData();
+  const { leads, activities } = useData();
   const [dateRange, setDateRange] = useState('30days');
 
-  const monthlyData = [
-    { month: 'Jan', leads: 45, deals: 12, revenue: 125000 },
-    { month: 'Feb', leads: 52, deals: 15, revenue: 165000 },
-    { month: 'Mar', leads: 48, deals: 13, revenue: 145000 },
-    { month: 'Apr', leads: 61, deals: 18, revenue: 195000 },
-    { month: 'May', leads: 55, deals: 16, revenue: 175000 },
-    { month: 'Jun', leads: 67, deals: 20, revenue: 225000 },
-  ];
+  // Calculate real monthly data from leads
+  const monthlyData = useMemo(() => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    return months.map((month, idx) => {
+      const monthLeads = leads.filter(l => {
+        const created = new Date(l.createdAt);
+        return created.getMonth() === idx;
+      });
+      const monthDeals = monthLeads.filter(l => ['Deal Closed', 'Interested', 'Site Visit Completed'].includes(l.status));
+      const revenue = monthDeals.reduce((sum, l) => sum + (l.value || 0), 0);
+      
+      return {
+        month,
+        leads: monthLeads.length,
+        deals: monthDeals.length,
+        revenue
+      };
+    });
+  }, [leads]);
 
-  const conversionFunnel = [
-    { stage: 'Leads', count: 150 },
-    { stage: 'Contacted', count: 120 },
-    { stage: 'Qualified', count: 80 },
-    { stage: 'Proposal', count: 50 },
-    { stage: 'Closed', count: 30 },
-  ];
+  // Calculate conversion funnel from real data
+  const conversionFunnel = useMemo(() => [
+    { stage: 'Leads', count: leads.length },
+    { stage: 'Contacted', count: leads.filter(l => !['New'].includes(l.status)).length },
+    { stage: 'Qualified', count: leads.filter(l => ['Follow-up Completed', 'Site Visit Scheduled', 'Site Visit Completed', 'Interested', 'Negotiation', 'Deal Closed'].includes(l.status)).length },
+    { stage: 'Proposal', count: leads.filter(l => ['Negotiation', 'Deal Closed'].includes(l.status)).length },
+    { stage: 'Closed', count: leads.filter(l => l.status === 'Deal Closed').length },
+  ], [leads]);
 
-  const sourcePerformance = [
-    { source: 'Website', leads: 45, conversion: 28 },
-    { source: 'LinkedIn', leads: 32, conversion: 35 },
-    { source: 'Referral', leads: 28, conversion: 42 },
-    { source: 'Google Ads', leads: 25, conversion: 22 },
-    { source: 'Conference', leads: 20, conversion: 38 },
-  ];
+  // Calculate source performance
+  const sourcePerformance = useMemo(() => {
+    const sources = [...new Set(leads.map(l => l.source))];
+    return sources.map(source => {
+      const sourceLeads = leads.filter(l => l.source === source);
+      const converted = sourceLeads.filter(l => ['Deal Closed', 'Interested'].includes(l.status));
+      return {
+        source,
+        leads: sourceLeads.length,
+        conversion: sourceLeads.length > 0 ? Math.round((converted.length / sourceLeads.length) * 100) : 0
+      };
+    }).sort((a, b) => b.leads - a.leads);
+  }, [leads]);
 
-  const teamData = [
-    { name: 'John Doe', leads: 35, deals: 12, revenue: 145000 },
-    { name: 'Jane Smith', leads: 28, deals: 9, revenue: 98000 },
-    { name: 'Mike Johnson', leads: 22, deals: 7, revenue: 76000 },
-  ];
+  // Calculate team performance from real leads
+  const teamData = useMemo(() => {
+    const teamMap = new Map();
+    
+    leads.forEach(lead => {
+      const ownerName = typeof lead.owner === 'string' ? lead.owner : lead.owner?.name || 'Unassigned';
+      
+      if (!teamMap.has(ownerName)) {
+        teamMap.set(ownerName, { name: ownerName, leads: 0, deals: 0, revenue: 0 });
+      }
+      
+      const member = teamMap.get(ownerName);
+      member.leads += 1;
+      
+      if (['Deal Closed', 'Interested', 'Site Visit Completed'].includes(lead.status)) {
+        member.deals += 1;
+        member.revenue += lead.value || 0;
+      }
+    });
+    
+    return Array.from(teamMap.values()).sort((a, b) => b.leads - a.leads).slice(0, 10);
+  }, [leads]);
 
   const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'];
+
+  // Calculate KPIs from real data
+  const totalLeads = leads.length;
+  const closedDeals = leads.filter(l => l.status === 'Deal Closed').length;
+  const conversionRate = totalLeads > 0 ? ((closedDeals / totalLeads) * 100).toFixed(1) : '0.0';
+  const totalRevenue = leads.reduce((sum, l) => sum + (l.value || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -85,8 +126,8 @@ export default function Analytics() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">Total Leads</p>
-                    <h3 className="text-2xl font-bold">150</h3>
-                    <p className="text-sm text-green-600">↑ 12% vs last period</p>
+                    <h3 className="text-2xl font-bold">{totalLeads}</h3>
+                    <p className="text-sm text-gray-600">All time</p>
                   </div>
                   <div className="p-3 bg-blue-100 rounded-lg">
                     <Users className="h-6 w-6 text-blue-600" />
@@ -100,8 +141,8 @@ export default function Analytics() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">Conversion Rate</p>
-                    <h3 className="text-2xl font-bold">24.5%</h3>
-                    <p className="text-sm text-green-600">↑ 3% vs last period</p>
+                    <h3 className="text-2xl font-bold">{conversionRate}%</h3>
+                    <p className="text-sm text-gray-600">Closed deals</p>
                   </div>
                   <div className="p-3 bg-purple-100 rounded-lg">
                     <Target className="h-6 w-6 text-purple-600" />
@@ -115,8 +156,8 @@ export default function Analytics() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">Deals Closed</p>
-                    <h3 className="text-2xl font-bold">30</h3>
-                    <p className="text-sm text-green-600">↑ 8% vs last period</p>
+                    <h3 className="text-2xl font-bold">{closedDeals}</h3>
+                    <p className="text-sm text-gray-600">Total closed</p>
                   </div>
                   <div className="p-3 bg-green-100 rounded-lg">
                     <TrendingUp className="h-6 w-6 text-green-600" />
@@ -130,8 +171,8 @@ export default function Analytics() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">Total Revenue</p>
-                    <h3 className="text-2xl font-bold">$225K</h3>
-                    <p className="text-sm text-green-600">↑ 15% vs last period</p>
+                    <h3 className="text-2xl font-bold">${(totalRevenue / 1000).toFixed(0)}K</h3>
+                    <p className="text-sm text-gray-600">Pipeline value</p>
                   </div>
                   <div className="p-3 bg-orange-100 rounded-lg">
                     <DollarSign className="h-6 w-6 text-orange-600" />

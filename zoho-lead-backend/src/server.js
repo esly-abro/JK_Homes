@@ -10,7 +10,6 @@ const logger = require('./utils/logger');
 const requestLogger = require('./middleware/logger');
 const errorHandler = require('./middleware/errorHandler');
 const leadsRoutes = require('./routes/leads');
-const aiWebhookRoutes = require('./routes/aiWebhook');
 
 // Create Express app
 const app = express();
@@ -51,7 +50,6 @@ app.get('/', (req, res) => {
 
 // API Routes
 app.use('/leads', leadsRoutes);
-app.use('/', aiWebhookRoutes); // AI webhook routes
 
 // 404 handler
 app.use((req, res) => {

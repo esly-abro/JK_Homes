@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
@@ -16,8 +16,11 @@ import {
   Upload,
   CalendarPlus,
   Building2,
+  Home,
   Menu,
-  X
+  X,
+  LogOut,
+  Check
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -28,14 +31,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import { logout } from '../../services/auth';
 
 export default function MainLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Leads', href: '/leads', icon: Users },
+    { name: 'Properties', href: '/properties', icon: Home },
     { name: 'Activities', href: '/activities', icon: Activity },
     { name: 'Calendar', href: '/calendar', icon: Calendar },
     { name: 'Messages', href: '/messages', icon: MessageSquare },
@@ -64,19 +76,81 @@ export default function MainLayout() {
               <span className="font-bold text-lg hidden sm:block">LeadFlow</span>
             </div>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="gap-2">
-                  <span className="hidden sm:inline">My Workspace</span>
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem>My Workspace</DropdownMenuItem>
-                <DropdownMenuItem>Team Workspace</DropdownMenuItem>
-                <DropdownMenuItem>Create New...</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* Workspace Dropdown - Custom Implementation */}
+            <div className="relative">
+              <Button
+                variant="ghost"
+                className="gap-2"
+                onClick={() => setWorkspaceDropdownOpen(!workspaceDropdownOpen)}
+              >
+                <span className="hidden sm:inline">My Workspace</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${workspaceDropdownOpen ? 'rotate-180' : ''}`} />
+              </Button>
+
+              {workspaceDropdownOpen && (
+                <>
+                  {/* Backdrop to close dropdown when clicking outside */}
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setWorkspaceDropdownOpen(false)}
+                  />
+
+                  {/* Dropdown Panel */}
+                  <div className="absolute left-0 top-full mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-xl z-50">
+                    <div className="px-3 py-2 border-b border-gray-100">
+                      <span className="text-sm font-semibold text-gray-900">My Workspace</span>
+                    </div>
+
+                    {/* Workspace List */}
+                    <div className="py-1">
+                      <button
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 text-left"
+                        onClick={() => setWorkspaceDropdownOpen(false)}
+                      >
+                        <Check className="h-4 w-4 text-blue-600" />
+                        <span>My Workspace</span>
+                      </button>
+                      <button
+                        className="w-full flex items-center gap-2 px-3 py-2 pl-9 text-sm hover:bg-gray-100 text-left"
+                        onClick={() => setWorkspaceDropdownOpen(false)}
+                      >
+                        <span>Real Estate Team</span>
+                      </button>
+                      <button
+                        className="w-full flex items-center gap-2 px-3 py-2 pl-9 text-sm hover:bg-gray-100 text-left"
+                        onClick={() => setWorkspaceDropdownOpen(false)}
+                      >
+                        <span>Sales Department</span>
+                      </button>
+                    </div>
+
+                    <div className="border-t border-gray-100 py-1">
+                      <button
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 text-left"
+                        onClick={() => setWorkspaceDropdownOpen(false)}
+                      >
+                        <Plus className="h-4 w-4 text-gray-500" />
+                        <span>Create New Workspace</span>
+                      </button>
+                      <button
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 text-left"
+                        onClick={() => setWorkspaceDropdownOpen(false)}
+                      >
+                        <Settings className="h-4 w-4 text-gray-500" />
+                        <span>Workspace Settings</span>
+                      </button>
+                      <button
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 text-left"
+                        onClick={() => setWorkspaceDropdownOpen(false)}
+                      >
+                        <Users className="h-4 w-4 text-gray-500" />
+                        <span>Manage Members</span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Center - Search */}
@@ -134,9 +208,18 @@ export default function MainLayout() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>Profile</DropdownMenuItem>
-                <DropdownMenuItem>Settings</DropdownMenuItem>
-                <DropdownMenuItem>Logout</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/settings')}>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/settings')}>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Logout
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

@@ -4,11 +4,13 @@ import { useData } from '../context/DataContext';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { ArrowLeft, User, Phone, MapPin, FileText, Clock, Loader2, PhoneOff, Mic, MicOff, CheckCircle } from 'lucide-react';
+import { ArrowLeft, User, Phone, MapPin, FileText, Clock, Loader2, PhoneOff, Mic, MicOff, CheckCircle, Home, DollarSign, Maximize2 } from 'lucide-react';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import ScheduleSiteVisitDialog from '../components/ScheduleSiteVisitDialog';
 import { useTwilioCall } from '../hooks/useTwilioCall';
+import { getProperties, Property } from '../../services/properties';
+import { updateLead as updateLeadAPI } from '../../services/leads';
 
 // Activity type for the lead
 interface LeadActivity {
@@ -21,7 +23,7 @@ interface LeadActivity {
 
 export default function LeadDetail() {
   const { id } = useParams();
-  const { leads, activities, updateLead, addActivity } = useData();
+  const { leads, activities, updateLead, addActivity, loading } = useData();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [callStatus, setCallStatus] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string>('');
@@ -30,6 +32,9 @@ export default function LeadDetail() {
   const [leadActivityList, setLeadActivityList] = useState<LeadActivity[]>([]);
   const [callNotes, setCallNotes] = useState<string>('');
   const [notesSaved, setNotesSaved] = useState(false);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [selectedProperty, setSelectedProperty] = useState<string>('');
+  const [assigningProperty, setAssigningProperty] = useState(false);
 
   const {
     initializeDevice,
@@ -52,6 +57,53 @@ export default function LeadDetail() {
     },
     onError: (err) => setCallStatus(`❌ Error: ${err}`),
   });
+
+  // Find the lead - MUST be declared before any useEffect that uses it
+  const lead = leads.find(l => l.id === id || l._id === id);
+  const leadActivities = activities.filter(a => a.leadId === id);
+
+  // Fetch properties on mount
+  useEffect(() => {
+    fetchProperties();
+  }, []);
+
+  const fetchProperties = async () => {
+    try {
+      const data = await getProperties();
+      setProperties(data);
+    } catch (error) {
+      console.error('Failed to fetch properties:', error);
+    }
+  };
+
+  // Set selected property if lead already has one
+  useEffect(() => {
+    if (lead?.propertyId) {
+      setSelectedProperty(lead.propertyId);
+    }
+  }, [lead?.propertyId]);
+
+  const handlePropertyAssignment = async () => {
+    if (!selectedProperty || !id) return;
+    
+    try {
+      setAssigningProperty(true);
+      await updateLeadAPI(id, { propertyId: selectedProperty });
+      await updateLead(id, { propertyId: selectedProperty });
+      
+      const property = properties.find(p => p._id === selectedProperty);
+      addLeadActivity('property', `Property Assigned: ${property?.name}`, 'bg-purple-500');
+      
+      setUpdateMessage('✅ Property assigned successfully!');
+      setTimeout(() => setUpdateMessage(null), 3000);
+    } catch (error) {
+      console.error('Failed to assign property:', error);
+      setUpdateMessage('❌ Failed to assign property');
+      setTimeout(() => setUpdateMessage(null), 3000);
+    } finally {
+      setAssigningProperty(false);
+    }
+  };
 
   // Track call connection for activity logging
   useEffect(() => {
@@ -77,8 +129,15 @@ export default function LeadDetail() {
     initializeDevice();
   }, []);
 
-  const lead = leads.find(l => l.id === id);
-  const leadActivities = activities.filter(a => a.leadId === id);
+  // Debug: Log lead lookup
+  useEffect(() => {
+    console.log('LeadDetail - Looking for ID:', id);
+    console.log('LeadDetail - Available leads:', leads.length);
+    console.log('LeadDetail - Found lead:', lead);
+    if (!lead && leads.length > 0) {
+      console.log('Sample lead IDs:', leads.slice(0, 3).map(l => ({ id: l.id, _id: l._id })));
+    }
+  }, [id, leads, lead]);
 
   // Load activities from localStorage on mount
   useEffect(() => {
@@ -159,13 +218,32 @@ export default function LeadDetail() {
     }
   };
 
+  // Show loading state while leads are being fetched
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading lead details...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!lead) {
     return (
-      <div className="text-center py-12">
-        <h2 className="text-2xl font-bold text-gray-900">Lead not found</h2>
-        <Link to="/leads">
-          <Button className="mt-4">Back to Leads</Button>
-        </Link>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="text-center">
+          <div className="text-6xl mb-4">🔍</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Lead not found</h2>
+          <p className="text-gray-600 mb-4">The lead with ID {id} could not be found</p>
+          <Link to="/leads">
+            <Button>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Leads
+            </Button>
+          </Link>
+        </div>
       </div>
     );
   }
@@ -257,11 +335,98 @@ export default function LeadDetail() {
                 <div className="bg-purple-500 rounded-full p-2">
                   <MapPin className="h-5 w-5 text-white" />
                 </div>
-                <div>
-                  <div className="text-xs text-gray-600">Property Interested</div>
-                  <div className="font-semibold text-gray-900">{lead.company}</div>
+                <div className="flex-1">
+                  <div className="text-xs text-gray-600 mb-2">Property Interested</div>
+                  <div className="flex gap-2">
+                    <Select value={selectedProperty} onValueChange={setSelectedProperty}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Assign a property..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {properties.filter(p => p.status === 'Available').map(property => (
+                          <SelectItem key={property._id} value={property._id!}>
+                            {property.name} - {property.location}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button 
+                      onClick={handlePropertyAssignment} 
+                      disabled={!selectedProperty || assigningProperty || selectedProperty === lead.propertyId}
+                      size="sm"
+                    >
+                      {assigningProperty ? 'Assigning...' : 'Assign'}
+                    </Button>
+                  </div>
                 </div>
               </div>
+
+              {/* Property Details Card (if assigned) */}
+              {selectedProperty && properties.find(p => p._id === selectedProperty) && (
+                <Card className="p-4 bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200">
+                  {(() => {
+                    const property = properties.find(p => p._id === selectedProperty);
+                    if (!property) return null;
+                    
+                    const formatPrice = (price: { min: number; max: number }) => {
+                      const formatNum = (num: number) => {
+                        if (num >= 10000000) return `₹${(num / 10000000).toFixed(2)}Cr`;
+                        if (num >= 100000) return `₹${(num / 100000).toFixed(2)}L`;
+                        return `₹${num.toLocaleString()}`;
+                      };
+                      return `${formatNum(price.min)} - ${formatNum(price.max)}`;
+                    };
+
+                    return (
+                      <>
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <Home className="h-5 w-5 text-purple-600" />
+                            <div>
+                              <h3 className="font-semibold text-gray-900">{property.name}</h3>
+                              <p className="text-sm text-gray-600">{property.location}</p>
+                            </div>
+                          </div>
+                          <Badge className="bg-purple-100 text-purple-700">
+                            {property.propertyType}
+                          </Badge>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div className="flex items-center gap-2">
+                            <DollarSign className="h-4 w-4 text-gray-500" />
+                            <div>
+                              <div className="text-xs text-gray-600">Price Range</div>
+                              <div className="font-medium text-gray-900">{formatPrice(property.price)}</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Maximize2 className="h-4 w-4 text-gray-500" />
+                            <div>
+                              <div className="text-xs text-gray-600">Size</div>
+                              <div className="font-medium text-gray-900">{property.size.value} {property.size.unit}</div>
+                            </div>
+                          </div>
+                          {property.bedrooms && property.bathrooms && (
+                            <div className="col-span-2">
+                              <div className="text-xs text-gray-600 mb-1">Configuration</div>
+                              <div className="font-medium text-gray-900">
+                                {property.bedrooms} BHK • {property.bathrooms} Bathrooms
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {property.description && (
+                          <p className="text-sm text-gray-700 mt-3 pt-3 border-t border-purple-200">
+                            {property.description}
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
+                </Card>
+              )}
 
               {/* Source */}
               <div className="bg-gray-50 p-4 rounded-lg">
@@ -282,9 +447,15 @@ export default function LeadDetail() {
             </div>
 
             {/* Call Status */}
-            {callStatus && (
-              <div className={`p-3 rounded-lg mb-4 mt-4 ${callStatus.includes('✅') || callStatus.includes('🔊') ? 'bg-green-100 text-green-800' : callStatus.includes('❌') ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>
-                {callStatus}
+            {(callStatus || updateMessage) && (
+              <div className={`p-3 rounded-lg mb-4 mt-4 ${
+                (callStatus?.includes('✅') || callStatus?.includes('🔊') || updateMessage?.includes('✅')) 
+                  ? 'bg-green-100 text-green-800' 
+                  : (callStatus?.includes('❌') || updateMessage?.includes('❌'))
+                  ? 'bg-red-100 text-red-800' 
+                  : 'bg-blue-100 text-blue-800'
+              }`}>
+                {updateMessage || callStatus}
                 {isOnCall && <span className="ml-2 font-mono">{formattedDuration}</span>}
               </div>
             )}

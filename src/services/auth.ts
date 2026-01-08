@@ -9,13 +9,39 @@ export interface User {
     id: string;
     email: string;
     name: string;
-    role: 'admin' | 'manager' | 'agent';
+    role: 'owner' | 'admin' | 'manager' | 'agent' | 'bpo';
+    approvalStatus?: 'pending' | 'approved' | 'rejected';
 }
 
 export interface LoginResponse {
     accessToken: string;
     refreshToken: string;
     user: User;
+}
+
+export interface RegisterResponse {
+    success: boolean;
+    message: string;
+    data: {
+        id: string;
+        email: string;
+        name: string;
+        approvalStatus: string;
+    };
+}
+
+/**
+ * Register a new agent account
+ */
+export async function register(email: string, password: string, name: string, phone?: string): Promise<RegisterResponse> {
+    const { data } = await api.post<RegisterResponse>('/auth/register', {
+        email,
+        password,
+        name,
+        phone
+    });
+
+    return data;
 }
 
 /**
