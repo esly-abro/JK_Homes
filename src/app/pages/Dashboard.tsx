@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -71,22 +72,30 @@ export default function Dashboard() {
   ];
 
   // Filter activities for today
-  const todaysActivities = activities.filter(activity => {
-    const activityDate = new Date(activity.timestamp);
+  const todaysActivities = useMemo(() => {
     const today = new Date();
-    const isToday = activityDate.toDateString() === today.toDateString();
-    const isStatusUpdate = activity.description.startsWith('Status Updated') || activity.type === 'note' || activity.type === 'status'; // generic/status types
-    const isRelevant = activity.type === 'meeting' || activity.description.toLowerCase().includes('site visit');
+    const todayStr = today.toDateString();
+    
+    return activities.filter(activity => {
+      const activityDate = new Date(activity.timestamp);
+      const isToday = activityDate.toDateString() === todayStr;
+      const isStatusUpdate = activity.description.startsWith('Status Updated') || activity.type === 'note' || activity.type === 'status'; // generic/status types
+      const isRelevant = activity.type === 'meeting' || activity.description.toLowerCase().includes('site visit');
 
-    return isToday && !isStatusUpdate && isRelevant;
-  });
+      return isToday && !isStatusUpdate && isRelevant;
+    });
+  }, [activities]);
 
   // Today's meetings from site visits - filter only for today's date
-  const todaysMeetings = siteVisits.filter(visit => {
-    const visitDate = new Date(visit.scheduledAt);
+  const todaysMeetings = useMemo(() => {
     const today = new Date();
-    return visitDate.toDateString() === today.toDateString();
-  });
+    const todayStr = today.toDateString();
+    
+    return siteVisits.filter(visit => {
+      const visitDate = new Date(visit.scheduledAt);
+      return visitDate.toDateString() === todayStr;
+    });
+  }, [siteVisits]);
 
   return (
     <div className="space-y-6">
