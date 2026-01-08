@@ -2,39 +2,10 @@ import { useData } from '../context/DataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { Plus, Phone, Mail, FileText, Calendar as CalendarIcon, MessageSquare, MapPin, CheckCircle2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { getTasks, updateTask } from '../../services/leads';
+import { Plus, Phone, Mail, FileText, Calendar as CalendarIcon, MessageSquare, MapPin } from 'lucide-react';
 
 export default function Activities() {
   const { activities, leads, siteVisits } = useData();
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [loadingTasks, setLoadingTasks] = useState(true);
-
-  useEffect(() => {
-    fetchTasks();
-  }, []);
-
-  const fetchTasks = async () => {
-    try {
-      setLoadingTasks(true);
-      const response = await getTasks({ status: 'pending' });
-      setTasks(response);
-    } catch (error) {
-      console.error('Failed to fetch tasks:', error);
-    } finally {
-      setLoadingTasks(false);
-    }
-  };
-
-  const handleCompleteTask = async (taskId: string) => {
-    try {
-      await updateTask(taskId, { isCompleted: true });
-      setTasks(prev => prev.filter(t => t._id !== taskId));
-    } catch (error) {
-      console.error('Failed to complete task:', error);
-    }
-  };
 
   // Combine activities and site visits for feed
   const allActivities = [
@@ -75,6 +46,12 @@ export default function Activities() {
       default: return 'bg-gray-100 text-gray-600';
     }
   };
+
+  const tasks = [
+    { id: '1', title: 'Follow up with Sarah Johnson', dueDate: 'Today', priority: 'high' },
+    { id: '2', title: 'Send proposal to Michael Chen', dueDate: 'Tomorrow', priority: 'medium' },
+    { id: '3', title: 'Schedule demo for Emma Williams', dueDate: 'Next week', priority: 'low' },
+  ];
 
   return (
     <div className="space-y-6">
@@ -146,108 +123,36 @@ export default function Activities() {
               <div className="space-y-4">
                 <div>
                   <h3 className="font-semibold text-red-600 mb-2">Overdue</h3>
-                  {loadingTasks ? (
-                    <div className="text-sm text-gray-500">Loading...</div>
-                  ) : tasks.filter(t => new Date(t.scheduledAt) < new Date() && !t.isCompleted).length === 0 ? (
-                    <div className="text-sm text-gray-500">No overdue tasks</div>
-                  ) : (
-                    tasks.filter(t => new Date(t.scheduledAt) < new Date() && !t.isCompleted).map(task => (
-                      <div key={task._id} className="p-3 border rounded-lg mb-2">
-                        <div className="flex items-center gap-2 mb-1">
-                          <input 
-                            type="checkbox" 
-                            className="rounded cursor-pointer" 
-                            onChange={() => handleCompleteTask(task._id)}
-                          />
-                          <span className="font-medium text-sm">{task.title}</span>
-                        </div>
-                        {task.metadata?.priority && (
-                          <Badge className={
-                            task.metadata.priority === 'high' ? 'bg-red-100 text-red-600' :
-                            task.metadata.priority === 'medium' ? 'bg-yellow-100 text-yellow-600' :
-                            'bg-gray-100 text-gray-600'
-                          }>
-                            {task.metadata.priority}
-                          </Badge>
-                        )}
-                      </div>
-                    ))
-                  )}
+                  <div className="text-sm text-gray-500">No overdue tasks</div>
                 </div>
                 
                 <div>
                   <h3 className="font-semibold mb-2">Today's Tasks</h3>
-                  {loadingTasks ? (
-                    <div className="text-sm text-gray-500">Loading...</div>
-                  ) : tasks.filter(t => {
-                    const taskDate = new Date(t.scheduledAt).toDateString();
-                    const today = new Date().toDateString();
-                    return taskDate === today && !t.isCompleted;
-                  }).length === 0 ? (
-                    <div className="text-sm text-gray-500">No tasks for today</div>
-                  ) : (
-                    tasks.filter(t => {
-                      const taskDate = new Date(t.scheduledAt).toDateString();
-                      const today = new Date().toDateString();
-                      return taskDate === today && !t.isCompleted;
-                    }).map(task => (
-                      <div key={task._id} className="p-3 border rounded-lg mb-2">
-                        <div className="flex items-center gap-2 mb-1">
-                          <input 
-                            type="checkbox" 
-                            className="rounded cursor-pointer" 
-                            onChange={() => handleCompleteTask(task._id)}
-                          />
-                          <span className="font-medium text-sm">{task.title}</span>
-                        </div>
-                        {task.metadata?.priority && (
-                          <Badge className={
-                            task.metadata.priority === 'high' ? 'bg-red-100 text-red-600' :
-                            task.metadata.priority === 'medium' ? 'bg-yellow-100 text-yellow-600' :
-                            'bg-gray-100 text-gray-600'
-                          }>
-                            {task.metadata.priority}
-                          </Badge>
-                        )}
+                  {tasks.filter(t => t.dueDate === 'Today').map(task => (
+                    <div key={task.id} className="p-3 border rounded-lg mb-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <input type="checkbox" className="rounded" />
+                        <span className="font-medium text-sm">{task.title}</span>
                       </div>
-                    ))
-                  )}
+                      <Badge variant="outline" className="text-xs">{task.priority}</Badge>
+                    </div>
+                  ))}
                 </div>
                 
                 <div>
                   <h3 className="font-semibold mb-2">Upcoming</h3>
-                  {loadingTasks ? (
-                    <div className="text-sm text-gray-500">Loading...</div>
-                  ) : tasks.filter(t => {
-                    const taskDate = new Date(t.scheduledAt);
-                    const today = new Date();
-                    return taskDate > today && !t.isCompleted;
-                  }).length === 0 ? (
-                    <div className="text-sm text-gray-500">No upcoming tasks</div>
-                  ) : (
-                    tasks.filter(t => {
-                      const taskDate = new Date(t.scheduledAt);
-                      const today = new Date();
-                      return taskDate > today && !t.isCompleted;
-                    }).map(task => (
-                      <div key={task._id} className="p-3 border rounded-lg mb-2">
-                        <div className="flex items-center gap-2 mb-1">
-                          <input 
-                            type="checkbox" 
-                            className="rounded cursor-pointer" 
-                            onChange={() => handleCompleteTask(task._id)}
-                          />
-                          <span className="font-medium text-sm">{task.title}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <span>{new Date(task.scheduledAt).toLocaleDateString()}</span>
-                          {task.metadata?.priority && (
-                            <Badge variant="outline" className="text-xs">{task.metadata.priority}</Badge>
-                          )}
-                        </div>
+                  {tasks.filter(t => t.dueDate !== 'Today').map(task => (
+                    <div key={task.id} className="p-3 border rounded-lg mb-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <input type="checkbox" className="rounded" />
+                        <span className="font-medium text-sm">{task.title}</span>
                       </div>
-                    ))
-                  )}
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <span>{task.dueDate}</span>
+                        <Badge variant="outline" className="text-xs">{task.priority}</Badge>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </CardContent>

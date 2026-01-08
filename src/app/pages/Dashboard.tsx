@@ -1,32 +1,12 @@
 import { useData } from '../context/DataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Users, TrendingUp, DollarSign, Target, ArrowUpRight, ArrowDownRight, Phone, Mail, Calendar, Clock, CheckCircle2, Filter, UserCheck, Award } from 'lucide-react';
+import { Users, TrendingUp, DollarSign, Target, ArrowUpRight, ArrowDownRight, Phone, Mail, Calendar, Clock, CheckCircle2, Filter } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, FunnelChart, Funnel, LabelList, Legend } from 'recharts';
-import { useEffect, useState } from 'react';
-import { getAgentWorkload, AgentWorkload } from '../../services/assignments';
 
 export default function Dashboard() {
   const { leads, activities, siteVisits } = useData();
-  const [agentWorkload, setAgentWorkload] = useState<AgentWorkload[]>([]);
-  const [loadingWorkload, setLoadingWorkload] = useState(true);
-
-  useEffect(() => {
-    fetchAgentWorkload();
-  }, []);
-
-  const fetchAgentWorkload = async () => {
-    try {
-      setLoadingWorkload(true);
-      const data = await getAgentWorkload();
-      setAgentWorkload(data);
-    } catch (error) {
-      console.error('Failed to fetch agent workload:', error);
-    } finally {
-      setLoadingWorkload(false);
-    }
-  };
 
   const stats = [
     {
@@ -69,10 +49,10 @@ export default function Dashboard() {
 
   const funnelData = [
     { name: 'New', value: leads.filter(l => l.status === 'New').length, fill: '#3b82f6' },
-    { name: 'Follow-up Completed', value: leads.filter(l => l.status === 'Follow-up Completed').length, fill: '#8b5cf6' },
-    { name: 'Site Visit Scheduled', value: leads.filter(l => l.status === 'Site Visit Scheduled').length, fill: '#ec4899' },
-    { name: 'Site Visit Completed', value: leads.filter(l => l.status === 'Site Visit Completed').length, fill: '#f59e0b' },
-    { name: 'Interested', value: leads.filter(l => l.status === 'Interested').length, fill: '#10b981' },
+    { name: 'Contacted', value: leads.filter(l => l.status === 'Contacted').length, fill: '#8b5cf6' },
+    { name: 'Qualified', value: leads.filter(l => l.status === 'Qualified').length, fill: '#ec4899' },
+    { name: 'Proposal', value: leads.filter(l => l.status === 'Proposal Sent').length, fill: '#f59e0b' },
+    { name: 'Negotiation', value: leads.filter(l => l.status === 'Negotiation').length, fill: '#10b981' },
   ];
 
   const sourceData = [
@@ -85,27 +65,10 @@ export default function Dashboard() {
 
   const leadsNeedingAttention = leads.filter(l => ['Not Interested', 'No Response'].includes(l.status)).slice(0, 3);
 
-  // Calculate team performance from real data
-  const teamPerformance = leads.reduce((acc: any[], lead) => {
-    const ownerName = typeof lead.owner === 'string' ? lead.owner : lead.owner?.name || 'Unknown';
-    const existing = acc.find(t => t.name === ownerName);
-    
-    if (existing) {
-      if (['New', 'Contacted', 'Qualified', 'Site Visit Scheduled'].includes(lead.status)) {
-        existing.active += 1;
-      } else if (['Interested', 'Site Visit Completed'].includes(lead.status)) {
-        existing.closed += 1;
-      }
-    } else {
-      acc.push({
-        name: ownerName,
-        active: ['New', 'Contacted', 'Qualified', 'Site Visit Scheduled'].includes(lead.status) ? 1 : 0,
-        closed: ['Interested', 'Site Visit Completed'].includes(lead.status) ? 1 : 0
-      });
-    }
-    
-    return acc;
-  }, []).slice(0, 5); // Top 5 performers
+  const teamPerformance = [
+    { name: 'John Doe', active: 3, closed: 2 },
+    { name: 'Jane Smith', active: 2, closed: 1 },
+  ];
 
   // Filter activities for today
   const todaysActivities = activities.filter(activity => {
@@ -118,8 +81,12 @@ export default function Dashboard() {
     return isToday && !isStatusUpdate && isRelevant;
   });
 
-  // Today's meetings from site visits
-  const todaysMeetings = siteVisits;
+  // Today's meetings from site visits - filter only for today's date
+  const todaysMeetings = siteVisits.filter(visit => {
+    const visitDate = new Date(visit.scheduledAt);
+    const today = new Date();
+    return visitDate.toDateString() === today.toDateString();
+  });
 
   return (
     <div className="space-y-6">
@@ -217,85 +184,6 @@ export default function Dashboard() {
 
           {/* Tables Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Agent Workload Distribution */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <UserCheck className="h-5 w-5 text-blue-600" />
-                  <CardTitle>Agent Workload</CardTitle>
-                </div>
-                <Link to="/leads?filter=unassigned">
-                  <Button variant="ghost" size="sm" className="gap-2">
-                    Assign Leads
-                  </Button>
-                </Link>
-              </CardHeader>
-              <CardContent>
-                {loadingWorkload ? (
-                  <div className="flex items-center justify-center h-48">
-                    <div className="text-sm text-gray-500">Loading workload...</div>
-                  </div>
-                ) : agentWorkload.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    No agents found
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {agentWorkload.slice(0, 5).map((agent) => (
-                      <div key={agent.agentId} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
-                            agent.activeLeads > 10 ? 'bg-red-100 text-red-600' :
-                            agent.activeLeads > 5 ? 'bg-yellow-100 text-yellow-600' :
-                            'bg-green-100 text-green-600'
-                          }`}>
-                            {agent.name.split(' ').map(n => n[0]).join('')}
-                          </div>
-                          <div>
-                            <div className="font-semibold text-gray-900">{agent.name}</div>
-                            <div className="text-xs text-gray-500 capitalize">{agent.role}</div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="flex items-center gap-4">
-                            <div>
-                              <div className="text-xs text-gray-600">Active</div>
-                              <div className="text-lg font-bold text-blue-600">{agent.activeLeads}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-gray-600">Closed</div>
-                              <div className="text-lg font-bold text-green-600">{agent.closedDeals}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-gray-600">Rate</div>
-                              <div className="text-sm font-semibold text-purple-600">{agent.conversionRate}%</div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                {/* Workload Chart */}
-                {!loadingWorkload && agentWorkload.length > 0 && (
-                  <div className="mt-6 pt-6 border-t">
-                    <h4 className="text-sm font-semibold text-gray-700 mb-4">Active Leads Distribution</h4>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart data={agentWorkload.slice(0, 5)}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                        <YAxis />
-                        <Tooltip />
-                        <Bar dataKey="activeLeads" fill="#3b82f6" name="Active Leads" />
-                        <Bar dataKey="closedDeals" fill="#10b981" name="Closed Deals" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
             {/* Leads Needing Attention */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
@@ -341,10 +229,7 @@ export default function Dashboard() {
                 </div>
               </CardContent>
             </Card>
-          </div>
 
-          {/* Team Performance Row */}
-          <div className="grid grid-cols-1 gap-6">
             {/* Team Performance */}
             <Card>
               <CardHeader>
@@ -391,7 +276,11 @@ export default function Dashboard() {
               {todaysMeetings.length > 0 ? (
                 <div className="space-y-4">
                   {todaysMeetings.map((meeting) => (
-                    <div key={meeting._id} className="gap-3 flex flex-col p-3 hover:bg-slate-50 rounded-md transition-colors border border-gray-100 hover:border-slate-200 shadow-sm">
+                    <Link 
+                      key={meeting._id} 
+                      to={`/leads/${meeting.lead?._id || meeting.lead?.id}`}
+                      className="gap-3 flex flex-col p-3 hover:bg-slate-50 rounded-md transition-colors border border-gray-100 hover:border-blue-300 shadow-sm cursor-pointer block"
+                    >
                       <div className="flex justify-between items-start">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded uppercase tracking-wide">
@@ -415,7 +304,7 @@ export default function Dashboard() {
                           <span>{meeting.confirmedBy}</span>
                         </div>
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               ) : (
