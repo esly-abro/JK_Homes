@@ -122,17 +122,15 @@ export default function Help() {
               <ul className="space-y-2">
                 {category.articles.map((article, articleIndex) => (
                   <li key={articleIndex}>
-                    <a
-                      href="#"
-                      className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-2"
-                      onClick={(e) => {
-                        e.preventDefault();
+                    <button
+                      className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-2 bg-transparent border-none cursor-pointer p-0"
+                      onClick={() => {
                         alert(`Opening article: ${article}`);
                       }}
                     >
                       {article}
                       <ExternalLink className="h-3 w-3" />
-                    </a>
+                    </button>
                   </li>
                 ))}
               </ul>

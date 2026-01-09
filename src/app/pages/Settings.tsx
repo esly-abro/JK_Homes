@@ -249,7 +249,7 @@ export default function Settings() {
 
   // Set active tab based on URL parameter or default to 'profile'
   const tabParam = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState(tabParam || 'profile');
+  const [activeTab, setActiveTab] = useState('profile');
 
   // Update active tab when URL parameter changes
   useEffect(() => {
