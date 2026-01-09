@@ -127,21 +127,30 @@ export default function MainLayout() {
                     <div className="border-t border-gray-100 py-1">
                       <button
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 text-left"
-                        onClick={() => setWorkspaceDropdownOpen(false)}
+                        onClick={() => {
+                          setWorkspaceDropdownOpen(false);
+                          navigate('/settings?tab=workspace');
+                        }}
                       >
                         <Plus className="h-4 w-4 text-gray-500" />
                         <span>Create New Workspace</span>
                       </button>
                       <button
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 text-left"
-                        onClick={() => setWorkspaceDropdownOpen(false)}
+                        onClick={() => {
+                          setWorkspaceDropdownOpen(false);
+                          navigate('/settings?tab=workspace');
+                        }}
                       >
                         <Settings className="h-4 w-4 text-gray-500" />
                         <span>Workspace Settings</span>
                       </button>
                       <button
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 text-left"
-                        onClick={() => setWorkspaceDropdownOpen(false)}
+                        onClick={() => {
+                          setWorkspaceDropdownOpen(false);
+                          navigate('/settings?tab=team');
+                        }}
                       >
                         <Users className="h-4 w-4 text-gray-500" />
                         <span>Manage Members</span>
@@ -174,27 +183,37 @@ export default function MainLayout() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/leads')}>
                   <Users className="h-4 w-4 mr-2" />
                   Add Lead
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/leads')}>
                   <Upload className="h-4 w-4 mr-2" />
                   Import
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/calendar')}>
                   <CalendarPlus className="h-4 w-4 mr-2" />
                   Schedule
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <Button variant="ghost" size="icon" className="relative">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="relative"
+              onClick={() => navigate('/settings?tab=notifications')}
+            >
               <Bell className="h-5 w-5" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
             </Button>
 
-            <Button variant="ghost" size="icon" className="hidden sm:flex">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="hidden sm:flex"
+              onClick={() => navigate('/help')}
+            >
               <HelpCircle className="h-5 w-5" />
             </Button>
 
@@ -208,7 +227,7 @@ export default function MainLayout() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => navigate('/settings')}>
+                <DropdownMenuItem onClick={() => navigate('/settings?tab=profile')}>
                   <Settings className="h-4 w-4 mr-2" />
                   Profile
                 </DropdownMenuItem>

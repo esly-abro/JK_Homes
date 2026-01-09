@@ -14,6 +14,7 @@ import Analytics from './pages/Analytics';
 import Properties from './pages/Properties';
 import Settings from './pages/Settings';
 import UserManagement from './pages/UserManagement';
+import Help from './pages/Help';
 import MainLayout from './components/MainLayout';
 import { getStoredUser, User } from '../services/auth';
 
@@ -62,6 +63,7 @@ export default function App() {
             <Route path="analytics" element={<Analytics />} />
             <Route path="settings" element={<Settings />} />
             <Route path="settings/users" element={<UserManagement />} />
+            <Route path="help" element={<Help />} />
           </Route>
         </Routes>
       </BrowserRouter>

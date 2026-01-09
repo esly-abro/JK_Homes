@@ -1,4 +1,5 @@
 import { useState, useRef, ChangeEvent, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -72,6 +73,7 @@ interface Invoice {
 }
 
 export default function Settings() {
+  const [searchParams] = useSearchParams();
   const [loadingTeam, setLoadingTeam] = useState(true);
 
   const [profile, setProfile] = useState<Profile>({
@@ -245,7 +247,16 @@ export default function Settings() {
     alert('Zoho CRM is currently connected via environment variables.\n\nTo re-configure, please update your .env file and restart the backend.');
   };
 
-  const [activeTab, setActiveTab] = useState('profile');
+  // Set active tab based on URL parameter or default to 'profile'
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(tabParam || 'profile');
+
+  // Update active tab when URL parameter changes
+  useEffect(() => {
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
 
   const handleExotelSettings = () => {
     setActiveTab('telephony');
@@ -334,11 +345,13 @@ export default function Settings() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="workspace">Workspace</TabsTrigger>
           <TabsTrigger value="team">Team</TabsTrigger>
           <TabsTrigger value="crm">CRM</TabsTrigger>
           <TabsTrigger value="telephony">Telephony</TabsTrigger>
           <TabsTrigger value="automation">Automation</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
+          <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="billing">Billing</TabsTrigger>
         </TabsList>
 
@@ -401,6 +414,59 @@ export default function Settings() {
               </div>
 
               <Button onClick={handleSaveProfile}>Save Changes</Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="workspace">
+          <Card>
+            <CardHeader>
+              <CardTitle>Workspace Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="workspaceName">Workspace Name</Label>
+                  <Input id="workspaceName" defaultValue="My Workspace" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="workspaceDescription">Description</Label>
+                  <Input id="workspaceDescription" defaultValue="Primary workspace for real estate leads" />
+                </div>
+              </div>
+
+              <div className="border-t pt-6">
+                <h3 className="font-medium mb-4">Workspace Members</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Manage who has access to this workspace and their permissions
+                </p>
+                <Button variant="outline">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Member to Workspace
+                </Button>
+              </div>
+
+              <div className="border-t pt-6">
+                <h3 className="font-medium mb-4">Workspace Settings</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium">Allow guest access</div>
+                      <div className="text-sm text-gray-600">Enable external users to view selected leads</div>
+                    </div>
+                    <Switch />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium">Require approval for new members</div>
+                      <div className="text-sm text-gray-600">Admin must approve new member requests</div>
+                    </div>
+                    <Switch defaultChecked />
+                  </div>
+                </div>
+              </div>
+
+              <Button onClick={() => alert('Workspace settings saved successfully!')}>Save Changes</Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -881,6 +947,67 @@ export default function Settings() {
                 </p>
               </div>
 
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="notifications">
+          <Card>
+            <CardHeader>
+              <CardTitle>Notification Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-semibold">Email Notifications</div>
+                    <div className="text-sm text-gray-600">Receive email alerts for new leads and activities</div>
+                  </div>
+                  <Switch defaultChecked />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-semibold">Push Notifications</div>
+                    <div className="text-sm text-gray-600">Get push notifications on your device</div>
+                  </div>
+                  <Switch defaultChecked />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-semibold">SMS Notifications</div>
+                    <div className="text-sm text-gray-600">Receive SMS for urgent updates</div>
+                  </div>
+                  <Switch />
+                </div>
+              </div>
+
+              <div className="border-t pt-6">
+                <h3 className="font-medium mb-4">Notification Preferences</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">New lead assigned to me</span>
+                    <Switch defaultChecked />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Lead status changes</span>
+                    <Switch defaultChecked />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Upcoming site visits</span>
+                    <Switch defaultChecked />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Team member comments</span>
+                    <Switch defaultChecked />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Daily activity summary</span>
+                    <Switch />
+                  </div>
+                </div>
+              </div>
+
+              <Button onClick={() => alert('Notification settings saved successfully!')}>Save Settings</Button>
             </CardContent>
           </Card>
         </TabsContent>
